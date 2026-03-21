@@ -1,0 +1,1467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <title>MeetInTheMiddle</title>
+  <meta name="description" content="Find the perfect meetup spot, fair for everyone"/>
+  <meta name="theme-color" content="#0d1117"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body, #root { width: 100%; height: 100%; overflow: hidden; }
+    body { background: #0d1117; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel" data-presets="react">
+    const { useState, useEffect, useRef, useCallback } = React;
+
+
+// ─── i18n ────────────────────────────────────────────────────────────────────
+const TRANSLATIONS = {
+  en: {
+    appSubtitle: "Find your perfect meetup spot",
+    addFriends: "Add Friends", 
+    friendName: "Friend's name", 
+    searchAddress: "Search address or city…",
+    addFriend: "+ Add Friend", 
+    addFriendConfirm: (n) => `✓ Add ${n || "Friend"}`, 
+    locating: "Locating…",
+    members: "Members", 
+    findSpots: "Find Spots ✦", 
+    finding: "Finding…",
+    bestSpots: "Best Spots", 
+    tapToSeeRoutes: "tap to see routes", 
+    best: "BEST",
+    avgKm: (n) => `${n} km avg`, 
+    backToSpots: "← Back to all spots", 
+    back: "← Back",
+    findingSpots: "Finding equidistant spots…", 
+    searchingVenues: "Searching restaurants, cafes, bars & more",
+    emptyTitle: "Add your friends above", 
+    emptyDesc: "Enter each person's location and how they'll travel. We'll find spots equidistant to everyone.",
+    bottomTip: "📌 Add 2+ friends to discover meeting spots",
+    noResults: "No results found", 
+    noResultsHint: "Try a city name or broader search",
+    errNotFound: "Address not found. Try a more specific address.",
+    errNeedTwo: "Add at least 2 members with valid addresses.",
+    errNoVenues: "No venues found nearby. Try different addresses.",
+    meetingMidpoint: "Meeting midpoint",
+    attribution: ["Maps © OpenStreetMap · Routing © OSRM", "Venues © OpenStreetMap contributors"],
+    travelModes: { "foot-walking": "Walk", "cycling-regular": "Cycle", "driving-car": "Drive", transit: "Transit" },
+    venueTypes: { restaurant:"restaurant", cafe:"cafe", bar:"bar", pub:"pub", cinema:"cinema", park:"park", museum:"museum", theatre:"theatre" },
+    min: "min", 
+    hour: "h", 
+    avgLabel: "avg", 
+    rtl: false,
+    toggleTheme: "Toggle theme",
+    onboardTitle: "Meet In The Middle",
+    onboardSub: "Find the perfect spot, fair for everyone",
+    onboardCta: "Get Started",
+    readyToFind: "Ready to find your spot!",
+    readyDesc: (n) => `${n} people added · tap below to discover venues`,
+    transitNote: "Approx. via road network",
+  },
+  he: {
+    appSubtitle: "מצא את מקום המפגש המושלם שלך",
+    addFriends: "הוסף חברים", 
+    friendName: "שם החבר", 
+    searchAddress: "חפש כתובת או עיר…",
+    addFriend: "+ הוסף חבר", 
+    addFriendConfirm: (n) => `✓ הוסף את ${n || "החבר"}`, 
+    locating: "מאתר…",
+    members: "משתתפים", 
+    findSpots: "מצא מקומות ✦", 
+    finding: "מחפש…",
+    bestSpots: "המקומות הטובים ביותר", 
+    tapToSeeRoutes: "לחץ לראות מסלולים", 
+    best: "הכי טוב",
+    avgKm: (n) => `ממוצע ${n} ק"מ`, 
+    backToSpots: "→ חזרה לכל המקומות", 
+    back: "→ חזרה",
+    findingSpots: "מחפש מקומות שווי מרחק…", 
+    searchingVenues: "מחפש מסעדות, בתי קפה, ברים ועוד",
+    emptyTitle: "הוסף חברים למעלה", 
+    emptyDesc: "הזן את מיקום כל אחד ואופן הנסיעה שלו. נמצא מקומות שווי מרחק לכולם.",
+    bottomTip: "📌 הוסף 2+ חברים כדי לגלות מקומות מפגש",
+    noResults: "לא נמצאו תוצאות", 
+    noResultsHint: "נסה שם עיר או חיפוש רחב יותר",
+    errNotFound: "הכתובת לא נמצאה. נסה כתובת מפורטת יותר.",
+    errNeedTwo: "הוסף לפחות 2 משתתפים עם כתובות תקינות.",
+    errNoVenues: "לא נמצאו מקומות בסביבה. נסה כתובות אחרות.",
+    meetingMidpoint: "נקודת המפגש",
+    attribution: ["מפות © OpenStreetMap · ניווט © OSRM", "מקומות © תורמי OpenStreetMap"],
+    travelModes: { "foot-walking": "הליכה", "cycling-regular": "אופניים", "driving-car": "רכב", transit: "תחבורה" },
+    venueTypes: { restaurant:"מסעדה", cafe:"בית קפה", bar:"בר", pub:"פאב", cinema:"קולנוע", park:"פארק", museum:"מוזיאון", theatre:"תיאטרון" },
+    min: "דק׳", 
+    hour: "ש׳", 
+    avgLabel: "ממוצע", 
+    rtl: true,
+    toggleTheme: "החלף ערכת נושא",
+    onboardTitle: "MeetInTheMiddle",
+    onboardSub: "מצא את המקום המושלם, הוגן לכולם",
+    onboardCta: "בואו נתחיל",
+    readyToFind: "מוכן למצוא את המקום!",
+    readyDesc: (n) => `${n} אנשים נוספו · לחץ למטה לגילוי מקומות`,
+    transitNote: "הערכה לפי רשת כבישים",
+  },
+};
+
+const SUPPORTED_LOCALES = ["en", "he"];
+
+function detectLocale() {
+  try { 
+    const s = localStorage.getItem("mitm_locale"); 
+    if (s && SUPPORTED_LOCALES.includes(s)) return s; 
+  } catch (_) {}
+  for (const lang of (navigator.languages || [navigator.language || "en"])) {
+    const code = lang.split("-")[0].toLowerCase();
+    if (SUPPORTED_LOCALES.includes(code)) return code;
+  }
+  return "en";
+}
+
+// ─── Constants ───────────────────────────────────────────────────────────────
+const MEMBER_COLORS = ["#FF6B6B","#4ECDC4","#FFD93D","#A29BFE","#FD79A8","#55EFC4","#FDCB6E","#74B9FF"];
+const TRAVEL_MODES = [
+  { id:"foot-walking",     icon:"🚶", osrmProfile:"foot",     kmph:5  },
+  { id:"cycling-regular",  icon:"🚴", osrmProfile:"bike",     kmph:15 },
+  { id:"driving-car",      icon:"🚗", osrmProfile:"driving",  kmph:50 },
+  { id:"transit",          icon:"🚌", osrmProfile:"driving",  kmph:25 },
+];
+const VENUE_TYPES = ["restaurant","cafe","bar","pub","cinema","park","museum","theatre"];
+
+const OSRM_BASES = {
+  foot:    "https://routing.openstreetmap.de/routed-foot/route/v1/walking",
+  bike:    "https://routing.openstreetmap.de/routed-bike/route/v1/cycling",
+  driving: "https://routing.openstreetmap.de/routed-car/route/v1/driving",
+};
+
+// ─── Themes ──────────────────────────────────────────────────────────────────
+const THEMES = {
+  dark: {
+    bg: "#0d1117",
+    surface: "rgba(13,17,23,0.92)",
+    surfaceLight: "rgba(13,17,23,0.85)",
+    border: "rgba(255,255,255,0.08)",
+    borderDash: "rgba(78,205,196,0.3)",
+    text: "#e8eaf0",
+    textSub: "#8892A4",
+    textFaint: "#5a6174",
+    inputBg: "rgba(255,255,255,0.05)",
+    inputBorder: "rgba(255,255,255,0.1)",
+    modeBg: "rgba(255,255,255,0.04)",
+    memberBg: "rgba(255,255,255,0.04)",
+    venueBg: "rgba(255,255,255,0.04)",
+    scrollbar: "#2a2f3e",
+    tileUrl: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+    tooltipBg: "#1a1f2e",
+    tooltipBorder: "#2a2f3e",
+    zoomBg: "#1a1f2e",
+    headerGrad: "linear-gradient(to bottom,rgba(13,17,23,0.95) 0%,rgba(13,17,23,0) 100%)",
+    chipText: "#c0c7d4",
+    skeletonBg: "rgba(255,255,255,0.06)",
+    accent: "#4ECDC4",
+    accentAlt: "#45B7D1",
+    themeBtnBg: "rgba(255,255,255,0.08)",
+    themeBtnBorder: "rgba(255,255,255,0.12)",
+  },
+  light: {
+    bg: "#f0f4f8",
+    surface: "rgba(255,255,255,0.96)",
+    surfaceLight: "rgba(255,255,255,0.88)",
+    border: "rgba(0,0,0,0.08)",
+    borderDash: "rgba(78,205,196,0.5)",
+    text: "#1a202c",
+    textSub: "#4a5568",
+    textFaint: "#718096",
+    inputBg: "rgba(0,0,0,0.04)",
+    inputBorder: "rgba(0,0,0,0.12)",
+    modeBg: "rgba(0,0,0,0.03)",
+    memberBg: "rgba(0,0,0,0.03)",
+    venueBg: "rgba(0,0,0,0.03)",
+    scrollbar: "#cbd5e0",
+    tileUrl: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+    tooltipBg: "#ffffff",
+    tooltipBorder: "#e2e8f0",
+    zoomBg: "#ffffff",
+    headerGrad: "linear-gradient(to bottom,rgba(240,244,248,0.97) 0%,rgba(240,244,248,0) 100%)",
+    chipText: "#2d3748",
+    skeletonBg: "rgba(0,0,0,0.06)",
+    accent: "#38b2ac",
+    accentAlt: "#3182ce",
+    themeBtnBg: "rgba(0,0,0,0.06)",
+    themeBtnBorder: "rgba(0,0,0,0.12)",
+  },
+};
+
+function detectTheme() {
+  try { const s = localStorage.getItem("mitm_theme"); if (s === "light" || s === "dark") return s; } catch (_) {}
+  return window.matchMedia?.("(prefers-color-scheme: light)").matches ? "light" : "dark";
+}
+
+// ─── Utilities ───────────────────────────────────────────────────────────────
+const uid = () => Math.random().toString(36).slice(2, 9);
+
+function haversine(a, b) {
+  const R = 6371, dLat = (b.lat-a.lat)*Math.PI/180, dLon = (b.lng-a.lng)*Math.PI/180;
+  const x = Math.sin(dLat/2)**2 + Math.cos(a.lat*Math.PI/180)*Math.cos(b.lat*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R*2*Math.atan2(Math.sqrt(x), Math.sqrt(1-x));
+}
+
+function calcCentroid(members) {
+  const v = members.filter(m=>m.latlng);
+  if (!v.length) return null;
+  return { lat: v.reduce((s,m)=>s+m.latlng.lat,0)/v.length, lng: v.reduce((s,m)=>s+m.latlng.lng,0)/v.length };
+}
+
+async function searchAddresses(query, locale="en") {
+  const base = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=6&addressdetails=1&accept-language=${locale}`;
+  const urls = [base, `https://corsproxy.io/?${encodeURIComponent(base)}`, `https://api.allorigins.win/raw?url=${encodeURIComponent(base)}`];
+  for (const url of urls) {
+    try {
+      const ctrl = new AbortController(), timer = setTimeout(()=>ctrl.abort(), 5000);
+      const r = await fetch(url, { signal: ctrl.signal });
+      clearTimeout(timer);
+      if (!r.ok) continue;
+      const d = await r.json();
+      if (!Array.isArray(d) || !d.length) continue;
+      return d.map(item => ({
+        lat: parseFloat(item.lat), lng: parseFloat(item.lon),
+        display: item.display_name,
+        short: [item.address?.road||item.address?.pedestrian||item.address?.suburb, item.address?.city||item.address?.town||item.address?.village||item.address?.county, item.address?.country].filter(Boolean).join(", "),
+        type: item.type, category: item.class,
+      }));
+    } catch (_) { continue; }
+  }
+  return [];
+}
+
+async function reverseGeocode(lat, lng, locale = "en") {
+  const base = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1&accept-language=${locale}`;
+  const urls = [base, `https://corsproxy.io/?${encodeURIComponent(base)}`, `https://api.allorigins.win/raw?url=${encodeURIComponent(base)}`];
+  for (const url of urls) {
+    try {
+      const ctrl = new AbortController(), timer = setTimeout(() => ctrl.abort(), 5000);
+      const r = await fetch(url, { signal: ctrl.signal });
+      clearTimeout(timer);
+      if (!r.ok) continue;
+      const item = await r.json();
+      if (!item || item.error) continue;
+      return {
+        lat: parseFloat(item.lat), lng: parseFloat(item.lon),
+        display: item.display_name,
+        short: [item.address?.road||item.address?.pedestrian||item.address?.suburb, item.address?.city||item.address?.town||item.address?.village||item.address?.county, item.address?.country].filter(Boolean).join(", "),
+        type: item.type, category: item.class,
+      };
+    } catch (_) { continue; }
+  }
+  return null;
+}
+
+function placeIcon(category, type) {
+  if (category==="amenity") return "🏛️";
+  if (category==="highway"||type==="residential") return "🛣️";
+  if (category==="place"&&(type==="city"||type==="town")) return "🏙️";
+  if (category==="place") return "📍";
+  if (category==="building") return "🏢";
+  if (category==="natural") return "🌿";
+  return "📌";
+}
+
+async function fetchVenues(centroid, radiusKm=2, venueTypes=VENUE_TYPES) {
+  const r = radiusKm*1000;
+  const q = `[out:json][timeout:15];(${venueTypes.map(t=>`node["amenity"="${t}"](around:${r},${centroid.lat},${centroid.lng});`).join("")});out body 40;`;
+  for (const ep of ["https://overpass-api.de/api/interpreter","https://lz4.overpass-api.de/api/interpreter","https://overpass.private.coffee/api/interpreter"]) {
+    try {
+      const ctrl = new AbortController(), timer = setTimeout(()=>ctrl.abort(), 12000);
+      const res = await fetch(ep, { method:"POST", body:q, signal:ctrl.signal });
+      clearTimeout(timer);
+      if (!res.ok) continue;
+      const d = await res.json();
+      const els = (d.elements||[]).filter(e=>e.tags&&e.tags.name);
+      if (!els.length) continue;
+      return els.map(e=>({ id:e.id, name:e.tags.name, type:e.tags.amenity||"place", lat:e.lat, lng:e.lon, cuisine:e.tags.cuisine, opening_hours:e.tags.opening_hours }));
+    } catch (_) { continue; }
+  }
+  return [];
+}
+
+async function fetchRoute(from, to, osrmProfile="foot") {
+  const baseUrl = OSRM_BASES[osrmProfile] || OSRM_BASES.foot;
+
+  try {
+    const ctrl = new AbortController(), timer = setTimeout(()=>ctrl.abort(), 8000);
+    const r = await fetch(`${baseUrl}/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson`, { signal:ctrl.signal });
+    clearTimeout(timer);
+    if (!r.ok) return null;
+    const d = await r.json();
+    if (d.routes?.[0]) {
+      return { 
+        coords: d.routes[0].geometry.coordinates.map(([lng,lat]) => [lat,lng]), 
+        duration: d.routes[0].duration, 
+        distance: d.routes[0].distance 
+      };
+    }
+  } catch (_) {}
+  return null;
+}
+
+function venueEmoji(type) {
+  return {restaurant:"🍽️",cafe:"☕",bar:"🍺",pub:"🍻",cinema:"🎬",park:"🌿",museum:"🏛️",theatre:"🎭"}[type]||"📍";
+}
+
+function fmtDuration(secs, t) {
+  if (!secs) return "--";
+  const m = Math.round(secs/60);
+  return m < 60 ? `${m} ${t.min}` : `${Math.floor(m/60)}${t.hour} ${m%60}${t.min}`;
+}
+
+function fmtDist(m) {
+  if (!m) return "--";
+  return m>=1000 ? `${(m/1000).toFixed(1)} km` : `${Math.round(m)} m`;
+}
+
+// ─── AddressAutocomplete ──────────────────────────────────────────────────────
+function AddressAutocomplete({ value, onChange, onSelect, placeholder, id, onKeyDown, locale, t, th }) {
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const [dropUp, setDropUp] = useState(false);
+  const debounceRef = useRef(null);
+  const wrapperRef = useRef(null);
+
+  useEffect(() => {
+    const fn = (e) => { 
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) { 
+        setShowSuggestions(false); 
+        setActiveIndex(-1); 
+      } 
+    };
+    document.addEventListener("mousedown", fn);
+    return () => document.removeEventListener("mousedown", fn);
+  }, []);
+
+  const handleChange = (e) => {
+    const v = e.target.value;
+    onChange(v); 
+    setActiveIndex(-1);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (v.trim().length < 3) { 
+      setSuggestions([]); 
+      setShowSuggestions(false); 
+      return; 
+    }
+    setSearching(true);
+    debounceRef.current = setTimeout(async () => {
+      const results = await searchAddresses(v, locale);
+      setSuggestions(results); 
+      setShowSuggestions(true); 
+      setSearching(false);
+      
+      // Smart direction: Open upwards if too close to bottom of screen
+      if (wrapperRef.current) {
+        const rect = wrapperRef.current.getBoundingClientRect();
+        setDropUp(rect.bottom > window.innerHeight - 240);
+      }
+    }, 380);
+  };
+
+  const handleSelect = (s) => {
+    onChange(s.short || s.display.split(",").slice(0,2).join(","));
+    onSelect(s); 
+    setSuggestions([]); 
+    setShowSuggestions(false); 
+    setActiveIndex(-1);
+  };
+
+  const handleKeyDown = (e) => {
+    if (showSuggestions && suggestions.length > 0) {
+      if (e.key==="ArrowDown") { e.preventDefault(); setActiveIndex(i=>Math.min(i+1,suggestions.length-1)); return; }
+      if (e.key==="ArrowUp") { e.preventDefault(); setActiveIndex(i=>Math.max(i-1,-1)); return; }
+      if (e.key==="Enter"&&activeIndex>=0) { e.preventDefault(); handleSelect(suggestions[activeIndex]); return; }
+      if (e.key==="Escape") { setShowSuggestions(false); setActiveIndex(-1); return; }
+    }
+    onKeyDown?.(e);
+  };
+
+  const handleFocus = (e) => {
+    e.target.style.borderColor = "#4ECDC4"; 
+    if(suggestions.length > 0) setShowSuggestions(true);
+    
+    if (wrapperRef.current) {
+      const rect = wrapperRef.current.getBoundingClientRect();
+      setDropUp(rect.bottom > window.innerHeight - 240);
+    }
+    
+    // Scroll smoothly into view so keyboard doesn't hide input
+    setTimeout(() => {
+      e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 300);
+  };
+
+  return (
+    <div ref={wrapperRef} style={{ position:"relative" }}>
+      <div style={{ position:"relative" }}>
+        <input 
+          id={id} 
+          className="responsive-input"
+          value={value} 
+          onChange={handleChange} 
+          onKeyDown={handleKeyDown} 
+          placeholder={placeholder} 
+          autoComplete="off"
+          onFocus={handleFocus}
+          onBlur={e => { 
+            if(!showSuggestions) e.target.style.borderColor = th.inputBorder; 
+          }}
+          style={{ 
+            width:"100%", 
+            background:th.inputBg, 
+            border:`1px solid ${showSuggestions ? "#4ECDC4" : th.inputBorder}`, 
+            borderRadius:10, 
+            padding:"10px 36px 10px 14px", 
+            color:th.text, 
+            fontFamily:"'DM Sans',sans-serif", 
+            transition:"border-color 0.2s" 
+          }} 
+        />
+        <div style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)", pointerEvents:"none" }}>
+          {searching
+            ? <div style={{ width:13, height:13, border:"2px solid #4ECDC4", borderTopColor:"transparent", borderRadius:"50%", animation:"spin 0.7s linear infinite" }}/>
+            : <svg width="14" height="14" viewBox="0 0 20 20" fill="none" style={{color:th.textSub}}><circle cx="8.5" cy="8.5" r="5.5" stroke="currentColor" strokeWidth="1.8"/><line x1="12.5" y1="12.5" x2="17" y2="17" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg>}
+        </div>
+      </div>
+      {showSuggestions && (
+        <div onMouseDown={e=>e.preventDefault()} style={{ 
+          position:"absolute", 
+          top: dropUp ? "auto" : "calc(100% + 6px)", 
+          bottom: dropUp ? "calc(100% + 6px)" : "auto",
+          left:0, right:0, zIndex:9999, 
+          background:th.surface, border:"1px solid rgba(78,205,196,0.25)", 
+          borderRadius:14, overflow:"hidden", boxShadow:"0 16px 48px rgba(0,0,0,0.7)", 
+          backdropFilter:"blur(24px)", animation:"fadeSlideIn 0.18s ease forwards" 
+        }}>
+          {suggestions.length===0 ? (
+            <div style={{ padding:"16px 14px", textAlign:"center" }}>
+              <div style={{ fontSize:20, marginBottom:6 }}>🔍</div>
+              <div style={{ color:th.textSub, fontSize:12 }}>{t.noResults}</div>
+              <div style={{ color:"#5a6174", fontSize:10, marginTop:4 }}>{t.noResultsHint}</div>
+            </div>
+          ) : suggestions.map((s,i) => (
+            <div key={i} onMouseDown={e=>{ e.preventDefault(); handleSelect(s); }} onMouseEnter={()=>setActiveIndex(i)}
+              style={{ padding:"10px 14px", cursor:"pointer", display:"flex", alignItems:"flex-start", gap:10, background:activeIndex===i?"rgba(78,205,196,0.12)":"transparent", borderBottom:i<suggestions.length-1?`1px solid ${th.border}`:"none", transition:"background 0.12s" }}>
+              <span style={{ fontSize:16, marginTop:1, flexShrink:0 }}>{placeIcon(s.category,s.type)}</span>
+              <div style={{ minWidth:0 }}>
+                <div style={{ color:activeIndex===i?"#4ECDC4":th.text, fontSize:12, fontWeight:500, lineHeight:1.3, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", transition:"color 0.12s" }}>
+                  {s.short||s.display.split(",").slice(0,2).join(",")}
+                </div>
+                <div style={{ color:"#5a6174", fontSize:10, marginTop:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{s.display}</div>
+              </div>
+            </div>
+          ))}
+          <div style={{ padding:"6px 14px 8px", borderTop:`1px solid ${th.border}`, display:"flex", alignItems:"center", gap:6 }}>
+            <svg width="10" height="10" viewBox="0 0 256 256"><path fill="#4a5568" d="M229.66 218.34l-50.07-50.07a88.11 88.11 0 1 0-11.31 11.31l50.06 50.07a8 8 0 0 0 11.32-11.31ZM40 112a72 72 0 1 1 72 72 72.08 72.08 0 0 1-72-72Z"/></svg>
+            <span style={{ color:"#4a5168", fontSize:10 }}>© OpenStreetMap contributors</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Language Toggle (EN ↔ HE) ───────────────────────────────────────────────
+function LangPicker({ locale, onChange, th }) {
+  const isHe = locale === "he";
+  return (
+    <button
+      onClick={() => onChange(isHe ? "en" : "he")}
+      title={isHe ? "Switch to English" : "עבור לעברית"}
+      style={{
+        background: th.themeBtnBg, border: `1px solid ${th.themeBtnBorder}`, borderRadius: 10,
+        padding: "6px 4px", cursor: "pointer", display: "flex", alignItems: "center",
+        width: 68, position: "relative", backdropFilter: "blur(8px)",
+        transition: "border-color 0.2s", overflow: "hidden",
+      }}
+      onMouseEnter={e => e.currentTarget.style.borderColor = th.accent}
+      onMouseLeave={e => e.currentTarget.style.borderColor = th.themeBtnBorder}
+    >
+      <div style={{
+        position: "absolute", top: 3, bottom: 3, width: "calc(50% - 3px)", borderRadius: 7,
+        background: "linear-gradient(135deg, #4ECDC4, #45B7D1)", boxShadow: "0 2px 8px rgba(78,205,196,0.4)",
+        transition: "left 0.22s cubic-bezier(0.34,1.56,0.64,1)",
+        left: isHe ? "calc(50% + 0px)" : "3px",
+      }} />
+      <span style={{ flex: 1, textAlign: "center", fontSize: 11, fontWeight: 700, fontFamily: "'DM Sans', sans-serif", color: !isHe ? th.bg : th.textSub, position: "relative", zIndex: 1, transition: "color 0.2s", letterSpacing: "0.03em" }}>EN</span>
+      <span style={{ flex: 1, textAlign: "center", fontSize: 11, fontWeight: 700, fontFamily: "'DM Sans', sans-serif", color: isHe ? th.bg : th.textSub, position: "relative", zIndex: 1, transition: "color 0.2s", letterSpacing: "0.03em" }}>עב</span>
+    </button>
+  );
+}
+
+// ─── Main App ─────────────────────────────────────────────────────────────────
+function App() {
+  const [locale, setLocale] = useState(detectLocale);
+  const t = TRANSLATIONS[locale] || TRANSLATIONS.en;
+  const isRtl = t.rtl === true;
+
+  const [themeName, setThemeName] = useState(detectTheme);
+  const th = THEMES[themeName];
+
+  const handleThemeChange = useCallback(() => {
+    setThemeName(prev => {
+      const next = prev === "dark" ? "light" : "dark";
+      try { localStorage.setItem("mitm_theme", next); } catch (_) {}
+      return next;
+    });
+  }, []);
+
+  const [members, setMembers] = useState([]);
+  const [venues, setVenues] = useState([]);
+  const [activeVenueTypes, setActiveVenueTypes] = useState(new Set(VENUE_TYPES));
+  const [selectedVenue, setSelectedVenue] = useState(null);
+  const [routes, setRoutes] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [loadingRoutes, setLoadingRoutes] = useState(false);
+  const [step, setStep] = useState("friends");
+  const [newName, setNewName] = useState("");
+  const [newAddress, setNewAddress] = useState("");
+  const [newAddressData, setNewAddressData] = useState(null);
+  const [newMode, setNewMode] = useState("foot-walking");
+  const [geocoding, setGeocoding] = useState(false);
+  const [locatingMe, setLocatingMe] = useState(false);
+  const [error, setError] = useState("");
+  const [mapReady, setMapReady] = useState(false);
+  const [onboardingDone, setOnboardingDone] = useState(false);
+  const [animatingOut, setAnimatingOut] = useState(false);
+
+  // Bottom Sheet Drag State
+  const [sheetVH, setSheetVH] = useState(50);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStartY = useRef(0);
+  const dragStartVH = useRef(0);
+
+  const mapRef = useRef(null);
+  const mapInstanceRef = useRef(null);
+  const markersRef = useRef([]);
+  const routeLayersRef = useRef([]);
+  const venueMarkersRef = useRef([]);
+  const centroidMarkerRef = useRef(null);
+  const leafletRef = useRef(null);
+  const tileLayerRef = useRef(null);
+
+  const handleLocaleChange = useCallback((l) => {
+    setLocale(l);
+    try { localStorage.setItem("mitm_locale", l); } catch (_) {}
+  }, []);
+
+  // --- Drag Sheet Logic ---
+  const handleDragStart = useCallback((clientY) => {
+    dragStartY.current = clientY;
+    dragStartVH.current = sheetVH;
+    setIsDragging(true);
+  }, [sheetVH]);
+
+  const handleDragMove = useCallback((clientY) => {
+    if (!isDragging) return;
+    const deltaY = dragStartY.current - clientY;
+    const deltaVH = (deltaY / window.innerHeight) * 100;
+    let newVH = dragStartVH.current + deltaVH;
+    if (newVH > 85) newVH = 85;
+    if (newVH < 15) newVH = 15;
+    setSheetVH(newVH);
+  }, [isDragging]);
+
+  const handleDragEnd = useCallback(() => {
+    if (!isDragging) return;
+    setIsDragging(false);
+    setSheetVH(prev => {
+      if (prev > 65) return 85;
+      if (prev < 35) return 20;
+      return 50;
+    });
+  }, [isDragging]);
+
+  const pointerDown = (e) => handleDragStart(e.touches ? e.touches[0].clientY : e.clientY);
+
+  useEffect(() => {
+    if (!isDragging) return;
+    const pointerMove = (e) => handleDragMove(e.touches ? e.touches[0].clientY : e.clientY);
+    const pointerUp = () => handleDragEnd();
+    
+    window.addEventListener('mousemove', pointerMove);
+    window.addEventListener('mouseup', pointerUp);
+    window.addEventListener('touchmove', pointerMove, { passive: false });
+    window.addEventListener('touchend', pointerUp);
+    return () => {
+      window.removeEventListener('mousemove', pointerMove);
+      window.removeEventListener('mouseup', pointerUp);
+      window.removeEventListener('touchmove', pointerMove);
+      window.removeEventListener('touchend', pointerUp);
+    };
+  }, [isDragging, handleDragMove, handleDragEnd]);
+
+  // --- Map Setup ---
+  useEffect(() => {
+    if (window.L) { leafletRef.current = window.L; setMapReady(true); return; }
+    const link = document.createElement("link"); link.rel="stylesheet"; link.href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"; document.head.appendChild(link);
+    const script = document.createElement("script"); script.src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js";
+    script.onload = () => { leafletRef.current = window.L; setMapReady(true); }; document.head.appendChild(script);
+  }, []);
+
+  useEffect(() => {
+    if (!mapReady || mapInstanceRef.current) return;
+    const L = leafletRef.current;
+    const map = L.map(mapRef.current, { zoomControl:false, attributionControl:false }).setView([48.8566,2.3522], 12);
+    tileLayerRef.current = L.tileLayer(th.tileUrl, { maxZoom:19 }).addTo(map);
+    L.control.zoom({ position:"bottomright" }).addTo(map);
+    mapInstanceRef.current = map;
+  }, [mapReady]);
+
+  useEffect(() => {
+    const L = leafletRef.current;
+    if (!L || !mapInstanceRef.current || !tileLayerRef.current) return;
+    mapInstanceRef.current.removeLayer(tileLayerRef.current);
+    tileLayerRef.current = L.tileLayer(th.tileUrl, { maxZoom:19 }).addTo(mapInstanceRef.current);
+  }, [th.tileUrl]);
+
+  useEffect(() => {
+    if (!onboardingDone || !mapInstanceRef.current) return;
+    setTimeout(() => {
+      mapInstanceRef.current.invalidateSize({ animate: false });
+      const L = leafletRef.current;
+      const valid = members.filter(m=>m.latlng);
+      if (L && valid.length > 1) mapInstanceRef.current.fitBounds(L.latLngBounds(valid.map(m=>[m.latlng.lat,m.latlng.lng])),{padding:[80,80]});
+      else if (L && valid.length === 1) mapInstanceRef.current.setView([valid[0].latlng.lat,valid[0].latlng.lng],13);
+    }, 500);
+  }, [onboardingDone]);
+
+  const clearRoutes = useCallback(() => {
+    if (!mapInstanceRef.current) return;
+    routeLayersRef.current.forEach(l=>mapInstanceRef.current.removeLayer(l)); 
+    routeLayersRef.current = [];
+  }, []);
+
+  const clearVenueMarkers = useCallback(() => {
+    if (!mapInstanceRef.current) return;
+    venueMarkersRef.current.forEach(m=>mapInstanceRef.current.removeLayer(m)); 
+    venueMarkersRef.current = [];
+    if (centroidMarkerRef.current) { 
+      mapInstanceRef.current.removeLayer(centroidMarkerRef.current); 
+      centroidMarkerRef.current = null; 
+    }
+  }, []);
+
+  const updateMemberMarkers = useCallback((mems) => {
+    const L = leafletRef.current;
+    if (!L || !mapInstanceRef.current) return;
+    markersRef.current.forEach(m=>mapInstanceRef.current.removeLayer(m)); 
+    markersRef.current = [];
+    mems.filter(m=>m.latlng).forEach(m => {
+      const icon = L.divIcon({ className:"", html:`<div style="width:36px;height:36px;border-radius:50%;background:${m.color};border:3px solid white;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:white;box-shadow:0 4px 15px rgba(0,0,0,0.4);">${m.name[0].toUpperCase()}</div>`, iconSize:[36,36], iconAnchor:[18,18] });
+      const tMode = t.travelModes[m.mode] || m.mode;
+      const tIcon = TRAVEL_MODES.find(tm=>tm.id===m.mode)?.icon||"";
+      const marker = L.marker([m.latlng.lat,m.latlng.lng],{icon}).addTo(mapInstanceRef.current);
+      marker.bindTooltip(`<b>${m.name}</b><br/><small>${tIcon} ${tMode}</small>`, { permanent:false });
+      markersRef.current.push(marker);
+    });
+    const valid = mems.filter(m=>m.latlng);
+    if (valid.length > 1) mapInstanceRef.current.fitBounds(L.latLngBounds(valid.map(m=>[m.latlng.lat,m.latlng.lng])),{padding:[60,60]});
+    else if (valid.length === 1) mapInstanceRef.current.setView([valid[0].latlng.lat,valid[0].latlng.lng],14);
+  }, [t]);
+
+  const addMember = useCallback(async () => {
+    if (!newName.trim()||!newAddress.trim()) return;
+    setError("");
+    let latlng = newAddressData;
+    if (!latlng) {
+      setGeocoding(true);
+      const results = await searchAddresses(newAddress, locale);
+      setGeocoding(false);
+      if (!results.length) { setError(t.errNotFound); return; }
+      latlng = results[0];
+    }
+    const member = { id:uid(), name:newName.trim(), address:newAddress.trim(), latlng:{lat:latlng.lat,lng:latlng.lng}, displayAddress:latlng.display, mode:newMode, color:MEMBER_COLORS[members.length%MEMBER_COLORS.length] };
+    const updated = [...members, member];
+    setMembers(updated); setNewName(""); setNewAddress(""); setNewAddressData(null); setNewMode("foot-walking");
+    setVenues([]); setSelectedVenue(null); setRoutes([]); setStep("friends");
+    clearVenueMarkers(); clearRoutes(); updateMemberMarkers(updated);
+  }, [newName, newAddress, newAddressData, newMode, members, locale, t, clearVenueMarkers, clearRoutes, updateMemberMarkers]);
+
+  const removeMember = useCallback((id) => {
+    const updated = members.filter(m=>m.id!==id);
+    setMembers(updated); setVenues([]); setSelectedVenue(null); setRoutes([]); setStep("friends");
+    clearVenueMarkers(); clearRoutes(); updateMemberMarkers(updated);
+  }, [members, clearVenueMarkers, clearRoutes, updateMemberMarkers]);
+
+  const updateMode = useCallback((id, mode) => {
+    setMembers(prev=>prev.map(m=>m.id===id?{...m,mode}:m));
+  }, []);
+
+  const locateMe = useCallback(() => {
+    if (!navigator.geolocation) { setError("Geolocation not supported by your browser."); return; }
+    setLocatingMe(true); setError("");
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude, longitude } = pos.coords;
+        const result = await reverseGeocode(latitude, longitude, locale);
+        setLocatingMe(false);
+        if (!result) { setError(t.errNotFound); return; }
+        setNewAddress(result.short || result.display.split(",").slice(0, 2).join(","));
+        setNewAddressData(result);
+      },
+      (err) => {
+        setLocatingMe(false);
+        setError(err.code === 1 ? "Location access denied. Please allow location in your browser." : "Could not get your location. Try entering it manually.");
+      },
+      { timeout: 10000, enableHighAccuracy: true }
+    );
+  }, [locale, t]);
+
+  // ─── ALGORITHM 5: Calibrated Centroid (Multiplicative Routing) ───────────────
+  
+  const scoreVenues = useCallback((raw, timesMap = {}) => {
+    const validMembers = members.filter(m=>m.latlng);
+    return raw.map(v => {
+      const times = validMembers.map(m => {
+        const apiTime = timesMap[m.id]?.[v.id];
+        if (apiTime !== undefined) return apiTime;
+        // Fallback to straight-line if API fails
+        const distKm = haversine(m.latlng, {lat:v.lat, lng:v.lng});
+        const kmph = TRAVEL_MODES.find(tm=>tm.id===m.mode)?.kmph || 5;
+        return (distKm / kmph) * 60;
+      });
+      const dists = validMembers.map(m=>haversine(m.latlng,{lat:v.lat,lng:v.lng}));
+      const mean = times.reduce((a,b)=>a+b,0)/times.length;
+      const variance = times.reduce((a,b)=>a+(b-mean)**2,0)/times.length;
+      return { ...v, dists, times, mean, variance, score: variance + Math.max(...times)*0.5 };
+    }).sort((a,b)=>a.score-b.score).slice(0,12);
+  }, [members]);
+
+  const findMeetingSpots = useCallback(async () => {
+    if (members.filter(m=>m.latlng).length < 2) { setError(t.errNeedTwo); return; }
+    
+    if (!onboardingDone) {
+      setAnimatingOut(true);
+      setTimeout(() => { setOnboardingDone(true); setAnimatingOut(false); }, 480);
+    }
+    
+    setLoading(true); setError(""); setSelectedVenue(null); setRoutes([]); clearRoutes();
+
+    const validMembers = members.filter(m=>m.latlng);
+    const ITERATIONS = 3;
+    
+    // Initial dumb geometric center
+    let centroid = calcCentroid(validMembers);
+    let scored = [], bestScored = [];
+    let allVenuesSeen = new Map();
+
+    for (let iter = 0; iter < ITERATIONS; iter++) {
+      // 0. Fetch venues around the current center to build our candidate pool
+      const radius = iter === 0 ? 2 : 2.5;
+      let raw = await fetchVenues(centroid, radius, Array.from(activeVenueTypes));
+
+      // If iter 0 returns nothing, expand radius progressively before giving up
+      if (iter === 0 && !raw.length) {
+        for (const expandedRadius of [5, 10, 20, 40]) {
+          raw = await fetchVenues(centroid, expandedRadius, Array.from(activeVenueTypes));
+          if (raw.length) break;
+        }
+      }
+
+      raw.forEach(v => { if (!allVenuesSeen.has(v.id)) allVenuesSeen.set(v.id, v); });
+
+      const candidates = Array.from(allVenuesSeen.values());
+      if (!candidates.length) { 
+        if (iter === 0) { setError(t.errNoVenues); setLoading(false); return; }
+        break; // Stop iterations if we can't find anything new
+      }
+
+      // 1. Get real road times to the CURRENT center (1 API call per member)
+      const centroidTimes = {};
+      await Promise.all(validMembers.map(async m => {
+        const profileInfo = TRAVEL_MODES.find(tm => tm.id === m.mode);
+        const profile = profileInfo?.osrmProfile || "foot";
+        const route = await fetchRoute(m.latlng, centroid, profile);
+        
+        if (route) {
+          let secs = route.duration;
+          // Transit hack: assume driving route, but at a conservative transit speed
+          if (m.mode === "transit") {
+            const drivingKmph = TRAVEL_MODES.find(tm=>tm.id==="driving-car")?.kmph || 50;
+            const transitKmph = TRAVEL_MODES.find(tm=>tm.id==="transit")?.kmph || 25;
+            secs *= (drivingKmph / transitKmph);
+          }
+          centroidTimes[m.id] = secs / 60; // in minutes
+        } else {
+          centroidTimes[m.id] = null;
+        }
+      }));
+
+      const timesMap = {};
+      
+      for (const m of validMembers) {
+        timesMap[m.id] = {};
+        const osrmTimeToCentroid = centroidTimes[m.id];
+        const kmph = TRAVEL_MODES.find(tm => tm.id === m.mode)?.kmph || 5;
+
+        // 2 & 3. Calculate theoretical straight-line time and Calibration Factor (Tortuosity Ratio)
+        let calibrationFactor = 1.0;
+        
+        if (osrmTimeToCentroid !== null && osrmTimeToCentroid !== undefined) {
+          const haversineDistToCentroid = haversine(m.latlng, centroid);
+          const haversineTimeToCentroid = (haversineDistToCentroid / kmph) * 60;
+          
+          // Only calibrate if they aren't standing right on top of the centroid
+          if (haversineTimeToCentroid > 0.5) { 
+            calibrationFactor = osrmTimeToCentroid / haversineTimeToCentroid;
+          }
+        }
+
+        // 4. Estimate time to ALL venues using the personalized tortuosity factor
+        for (const v of candidates) {
+          const distToVenue = haversine(m.latlng, { lat: v.lat, lng: v.lng });
+          const haversineTimeToVenue = (distToVenue / kmph) * 60;
+          
+          // Apply the road network distortion factor
+          timesMap[m.id][v.id] = haversineTimeToVenue * calibrationFactor;
+        }
+      }
+
+      // 5. Score the venues based on variance + max time
+      scored = scoreVenues(candidates, timesMap);
+      if (!bestScored.length || scored[0].score < bestScored[0].score) {
+        bestScored = scored;
+      }
+
+      // 6. Refine the centroid for the next iteration using speed-normalized travel times as gravity weights
+      if (iter < ITERATIONS - 1) {
+        const validEntries = validMembers.filter(m => centroidTimes[m.id] != null);
+        const weights = validEntries.map(m => ({
+          m, w: centroidTimes[m.id] / (TRAVEL_MODES.find(t => t.id === m.mode)?.kmph || 5)
+        }));
+        const maxW = weights.length > 0 ? Math.max(...weights.map(e => e.w)) : 1;
+        let latSum = 0, lngSum = 0, wSum = 0;
+        for (const { m, w } of weights) {
+          latSum += m.latlng.lat * w; 
+          lngSum += m.latlng.lng * w; 
+          wSum += w;
+        }
+        // fallback weight for members where routing failed
+        for (const m of validMembers.filter(m => centroidTimes[m.id] == null)) {
+          latSum += m.latlng.lat * maxW; 
+          lngSum += m.latlng.lng * maxW; 
+          wSum += maxW;
+        }
+        if (wSum > 0) {
+          centroid = { lat: latSum/wSum, lng: lngSum/wSum };
+        }
+      }
+    }
+
+    setVenues(bestScored);
+    clearVenueMarkers();
+    const L = leafletRef.current;
+    
+    bestScored.forEach((v,i) => {
+      const icon = L.divIcon({ className:"", html:`<div style="width:32px;height:32px;border-radius:8px;background:${i===0?"#FFD93D":"#2d3250"};border:2px solid ${i===0?"#fff":"#4ECDC4"};display:flex;align-items:center;justify-content:center;font-size:13px;box-shadow:0 4px 12px rgba(0,0,0,0.5);cursor:pointer;">${venueEmoji(v.type)}</div>`, iconSize:[32,32], iconAnchor:[16,16] });
+      const mk = L.marker([v.lat,v.lng],{icon}).addTo(mapInstanceRef.current);
+      mk.bindTooltip(`<b>${v.name}</b><br/><small>${t.venueTypes[v.type]||v.type}</small>`);
+      mk.on("click",()=>selectVenue(v,bestScored));
+      venueMarkersRef.current.push(mk);
+    });
+    
+    const cIcon = L.divIcon({ className:"", html:`<div style="width:20px;height:20px;border-radius:50%;background:rgba(78,205,196,0.3);border:2px solid #4ECDC4;animation:pulse 2s infinite;"></div>`, iconSize:[20,20], iconAnchor:[10,10] });
+    centroidMarkerRef.current = L.marker([centroid.lat,centroid.lng],{icon:cIcon}).addTo(mapInstanceRef.current);
+    centroidMarkerRef.current.bindTooltip(t.meetingMidpoint);
+    
+    const allPts = [...validMembers.map(m=>[m.latlng.lat,m.latlng.lng]),...bestScored.map(v=>[v.lat,v.lng])];
+    mapInstanceRef.current.fitBounds(L.latLngBounds(allPts),{padding:[80,80]});
+    setStep("results"); setLoading(false);
+  }, [members, t, clearRoutes, clearVenueMarkers, scoreVenues, onboardingDone, activeVenueTypes]);
+
+  const selectVenue = useCallback(async (venue, venueList) => {
+    const list = venueList||venues;
+    setSelectedVenue(venue); setLoadingRoutes(true); clearRoutes(); setStep("routes");
+    const L = leafletRef.current;
+    
+    const fetched = await Promise.all(members.filter(m=>m.latlng).map(async m => {
+      const profileInfo = TRAVEL_MODES.find(tm=>tm.id===m.mode);
+      const profile = profileInfo?.osrmProfile || "foot";
+      const route = await fetchRoute(m.latlng, {lat:venue.lat, lng:venue.lng}, profile);
+      
+      if (route && m.mode === "transit") {
+        const drivingSpeed = TRAVEL_MODES.find(tm=>tm.id==="driving-car")?.kmph || 50;
+        const transitSpeed = profileInfo?.kmph || 25;
+        route.duration = route.duration * (drivingSpeed / transitSpeed);
+      }
+      return { member:m, route };
+    }));
+    
+    fetched.forEach(({member,route}) => {
+      if (!route) return;
+      const line = L.polyline(route.coords,{color:member.color,weight:4,opacity:0.85,dashArray:member.mode==="transit"?"8,6":null}).addTo(mapInstanceRef.current);
+      routeLayersRef.current.push(line);
+    });
+    
+    const allPts = [...members.filter(m=>m.latlng).map(m=>[m.latlng.lat,m.latlng.lng]),[venue.lat,venue.lng]];
+    mapInstanceRef.current.fitBounds(L.latLngBounds(allPts),{padding:[80,80]});
+    setRoutes(fetched); setLoadingRoutes(false);
+    
+    venueMarkersRef.current.forEach((mk,i) => {
+      if (list[i]?.id===venue.id) mk.setIcon(L.divIcon({ className:"", html:`<div style="width:40px;height:40px;border-radius:10px;background:#FFD93D;border:3px solid white;display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 6px 20px rgba(0,0,0,0.6);">${venueEmoji(venue.type)}</div>`, iconSize:[40,40], iconAnchor:[20,20] }));
+    });
+  }, [members, venues, clearRoutes]);
+
+  const handleBackToResults = useCallback(() => {
+    setStep("results"); clearRoutes(); setSelectedVenue(null);
+    const L = leafletRef.current;
+    const allPts = [...members.filter(m=>m.latlng).map(m=>[m.latlng.lat,m.latlng.lng]),...venues.map(v=>[v.lat,v.lng])];
+    if (L && allPts.length) mapInstanceRef.current.fitBounds(L.latLngBounds(allPts),{padding:[80,80]});
+  }, [members, venues, clearRoutes]);
+
+  const handleStandardInputFocus = (e) => {
+    e.target.style.borderColor = "#4ECDC4";
+    setTimeout(() => {
+      e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 300);
+  };
+
+  return (
+    <div dir={isRtl ? "rtl" : "ltr"} style={{ width:"100%", height:"100vh", background:th.bg, fontFamily: isRtl ? "'Heebo', 'DM Sans', sans-serif" : "'DM Sans', sans-serif", display:"flex", flexDirection:"column", overflow:"hidden", position:"relative", transition:"background 0.3s" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Heebo:wght@300;400;500;600;700&family=Playfair+Display:wght@700&display=swap');
+        * { box-sizing:border-box; margin:0; padding:0; }
+        ::-webkit-scrollbar { width:4px; } ::-webkit-scrollbar-track { background:transparent; } ::-webkit-scrollbar-thumb { background:${th.scrollbar}; border-radius:2px; }
+        input { outline:none; }
+        
+        /* Stop iOS Auto-Zoom */
+        .responsive-input { font-size: 16px !important; }
+        @media (min-width: 768px) { .responsive-input { font-size: 13px !important; } }
+
+        @keyframes pulse { 0%,100%{transform:scale(1);opacity:1} 50%{transform:scale(1.5);opacity:0.5} }
+        @keyframes fadeSlideIn { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes spin { to{transform:rotate(360deg)} }
+        @keyframes slideDown { from{transform:translateY(0)} to{transform:translateY(110%)} }
+        @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+        @keyframes floatUp { from{opacity:0;transform:translateY(24px)} to{opacity:1;transform:translateY(0)} }
+        .card-in { animation:fadeSlideIn 0.35s ease forwards; }
+        .hover-lift { transition:transform 0.2s,box-shadow 0.2s; }
+        .hover-lift:hover { transform:translateY(-2px); box-shadow:0 8px 32px rgba(0,0,0,0.15) !important; }
+        .venue-card { animation:fadeSlideIn 0.3s ease forwards; }
+        .leaflet-tooltip { background:${th.tooltipBg} !important; border:1px solid ${th.tooltipBorder} !important; color:${th.text} !important; font-family:'DM Sans',sans-serif !important; font-size:12px !important; border-radius:8px !important; padding:6px 10px !important; }
+        .leaflet-tooltip-top::before { border-top-color:${th.tooltipBorder} !important; }
+        .leaflet-control-zoom a { background:${th.zoomBg} !important; color:${th.text} !important; border:1px solid ${th.border} !important; }
+        
+        /* Desktop sidebar */
+        .sidebar { position:absolute; top:0; bottom:0; width:380px; z-index:100; display:flex; flex-direction:column; pointer-events:none; }
+        [dir='ltr'] .sidebar { left:0; }
+        [dir='rtl'] .sidebar { right:0; }
+        .sidebar-content { flex:1; display:flex; flex-direction:column; margin-top:80px; margin-bottom:20px; gap:12px; overflow-y:auto; padding-bottom:8px; pointer-events:all; }
+        [dir='ltr'] .sidebar-content { margin-left:16px; }
+        [dir='rtl'] .sidebar-content { margin-right:16px; }
+        .mobile-handle-zone { display: none; }
+        
+        /* Mobile: dynamic bottom sheet */
+        @media (max-width:768px) {
+          .sidebar { 
+            width:100%; top:auto; bottom:0;
+            height: var(--sheet-vh, 50dvh); 
+            max-height: 85dvh; 
+            background:${th.surface}; 
+            border-top-left-radius: 24px; border-top-right-radius: 24px; 
+            box-shadow: 0 -8px 32px rgba(0,0,0,0.15); 
+            pointer-events:all; 
+            display: flex; flex-direction: column;
+          }
+          .mobile-handle-zone { 
+            display: block; width: 100%; padding: 16px 0 10px; cursor: grab; touch-action: none;
+          }
+          .mobile-handle-zone:active { cursor: grabbing; }
+          .mobile-handle { 
+            width: 40px; height: 5px; border-radius: 3px; 
+            background: ${th.border}; margin: 0 auto; 
+          }
+          .sidebar-content { margin:0; padding:0 16px 20px; overflow-y: auto; flex: 1; }
+        }
+
+        /* Onboarding overlay */
+        .onboard-overlay {
+          position:absolute; inset:0; z-index:500;
+          display:flex; flex-direction:column;
+          background:${th.bg}; max-height: 100dvh;
+          transition:transform 0.48s cubic-bezier(0.4,0,0.2,1);
+        }
+        .onboard-overlay.sliding { animation:slideDown 0.48s cubic-bezier(0.4,0,0.2,1) forwards; }
+        .onboard-inner {
+          flex:1; display:flex; flex-direction:column;
+          overflow-y:auto; padding:0 20px 100px;
+        }
+        @media (max-width:768px) {
+          .onboard-inner { padding:0 16px 120px; }
+        }
+      `}</style>
+
+      {/* Map always renders in background */}
+      <div ref={mapRef} style={{ position:"absolute", inset:0, zIndex:0 }} />
+
+      {/* ── Onboarding overlay ── */}
+      {!onboardingDone && (
+        <div className={`onboard-overlay${animatingOut ? " sliding" : ""}`}>
+          <div style={{ flexShrink:0, padding:"20px 20px 0", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+              <div style={{ width:36, height:36, borderRadius:10, background:"linear-gradient(135deg,#4ECDC4,#45B7D1)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, boxShadow:"0 4px 15px rgba(78,205,196,0.4)" }}>🗺️</div>
+              <div>
+                <div style={{ fontFamily:"'Playfair Display',serif", fontSize:18, fontWeight:700, color:th.text, letterSpacing:"-0.3px", lineHeight:1 }}>MeetInTheMiddle</div>
+                <div style={{ fontSize:10, color:th.accent, letterSpacing:"0.15em", textTransform:"uppercase", marginTop:2 }}>{t.appSubtitle}</div>
+              </div>
+            </div>
+            <div style={{ display:"flex", gap:8 }}>
+              <button onClick={handleThemeChange} title={t.toggleTheme}
+                style={{ background:th.themeBtnBg, border:`1px solid ${th.themeBtnBorder}`, borderRadius:10, width:36, height:36, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", fontSize:16, transition:"all 0.2s" }}
+                onMouseEnter={e=>e.currentTarget.style.borderColor=th.accent}
+                onMouseLeave={e=>e.currentTarget.style.borderColor=th.themeBtnBorder}>
+                {themeName==="dark" ? "☀️" : "🌙"}
+              </button>
+              <LangPicker locale={locale} onChange={handleLocaleChange} th={th} />
+            </div>
+          </div>
+
+          <div className="onboard-inner">
+            {members.length === 0 && (
+              <div style={{ textAlign:"center", padding:"40px 0 32px", animation:"floatUp 0.5s ease forwards" }}>
+                <div style={{ fontSize:56, marginBottom:16, lineHeight:1 }}>🌍</div>
+                <div style={{ fontFamily:"'Playfair Display',serif", fontSize:26, fontWeight:700, color:th.text, marginBottom:8, lineHeight:1.2 }}>{t.onboardSub}</div>
+                <div style={{ fontSize:13, color:th.textSub, lineHeight:1.6, maxWidth:300, margin:"0 auto" }}>{t.emptyDesc}</div>
+              </div>
+            )}
+
+            {members.length >= 2 && (
+              <div style={{ margin:"20px 0 4px", padding:"14px 16px", background:"rgba(78,205,196,0.1)", border:"1px solid rgba(78,205,196,0.3)", borderRadius:16, display:"flex", alignItems:"center", gap:12, animation:"floatUp 0.3s ease forwards" }}>
+                <div style={{ fontSize:24 }}>✦</div>
+                <div>
+                  <div style={{ color:th.accent, fontWeight:700, fontSize:13 }}>{t.readyToFind}</div>
+                  <div style={{ color:th.textSub, fontSize:11, marginTop:2 }}>{t.readyDesc(members.length)}</div>
+                </div>
+              </div>
+            )}
+
+          <div style={{ background:th.surface, border:`1px solid ${th.border}`, borderRadius:20, padding:20, backdropFilter:"blur(20px)", boxShadow:"0 8px 32px rgba(0,0,0,0.15)", marginTop: members.length === 0 ? "0px" : "16px" }}>
+            <div style={{ fontFamily:"'Playfair Display',serif", fontSize:15, color:th.text, marginBottom:14, display:"flex", alignItems:"center", gap:8 }}>
+              <span>👥</span> {t.addFriends}
+            </div>
+            <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+              <input value={newName} onChange={e=>setNewName(e.target.value)} placeholder={t.friendName}
+                className="responsive-input"
+                onKeyDown={e=>e.key==="Enter"&&document.getElementById("addr-input-onboard")?.focus()}
+                onFocus={handleStandardInputFocus} onBlur={e=>e.target.style.borderColor=th.inputBorder}
+                style={{ background:th.inputBg, border:`1px solid ${th.inputBorder}`, borderRadius:10, padding:"10px 14px", color:th.text, fontFamily:"'DM Sans',sans-serif", transition:"border-color 0.2s" }}/>
+              <AddressAutocomplete id="addr-input-onboard" value={newAddress}
+                onChange={v=>{ setNewAddress(v); setNewAddressData(null); }}
+                onSelect={s=>{ setNewAddress(s.short||s.display.split(",").slice(0,2).join(",")); setNewAddressData(s); }}
+                placeholder={t.searchAddress} onKeyDown={e=>e.key==="Enter"&&addMember()}
+                locale={locale} t={t} th={th}/>
+              
+              <button onClick={locateMe} disabled={locatingMe || geocoding}
+                style={{
+                  display:"flex", alignItems:"center", justifyContent:"center", gap:6,
+                  padding:"8px 14px", borderRadius:10, border:`1px solid ${th.inputBorder}`,
+                  background: th.inputBg, color: locatingMe ? th.accent : th.textSub,
+                  cursor: locatingMe ? "not-allowed" : "pointer",
+                  fontFamily:"'DM Sans',sans-serif", fontSize:12, fontWeight:500,
+                  transition:"all 0.2s", width:"100%",
+                }}
+                onMouseEnter={e => { if (!locatingMe) e.currentTarget.style.borderColor = th.accent; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = th.inputBorder; }}>
+                {locatingMe
+                  ? <><div style={{ width:12, height:12, border:"2px solid #4ECDC4", borderTopColor:"transparent", borderRadius:"50%", animation:"spin 0.7s linear infinite" }}/>{t.locating}</>
+                  : <>📍 {locale === "he" ? "השתמש במיקומי" : "Use my location"}</>}
+              </button>
+
+              <div style={{ display:"flex", gap:6 }}>
+                {TRAVEL_MODES.map(m=>(
+                  <button key={m.id} onClick={()=>setNewMode(m.id)} title={t.travelModes[m.id]}
+                    style={{ flex:1, padding:"9px 4px", borderRadius:10, border:`2px solid ${newMode===m.id?"#4ECDC4":th.inputBorder}`, background:newMode===m.id?"rgba(78,205,196,0.15)":th.modeBg, cursor:"pointer", fontSize:18, transition:"all 0.2s" }}>
+                    {m.icon}
+                  </button>
+                ))}
+              </div>
+              {newMode==="transit" && (
+                <div style={{ fontSize:10, color:th.textSub, padding:"4px 8px", background:th.inputBg, borderRadius:6, border:`1px solid ${th.inputBorder}` }}>
+                  🚌 {t.transitNote}
+                </div>
+              )}
+              {error && <div style={{ color:"#FF6B6B", fontSize:12, padding:"6px 10px", background:"rgba(255,107,107,0.1)", borderRadius:8 }}>{error}</div>}
+              <button onClick={addMember} disabled={geocoding||!newName.trim()||!newAddress.trim()}
+                style={{ background:!newName.trim()||!newAddress.trim()?"rgba(78,205,196,0.2)":"linear-gradient(135deg,#4ECDC4,#45B7D1)", border:"none", borderRadius:10, padding:"11px", color:!newName.trim()||!newAddress.trim()?"#4ECDC4":"#0d1117", fontFamily:"'DM Sans',sans-serif", fontWeight:700, fontSize:13, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8, transition:"all 0.2s" }}>
+                {geocoding ? <><div style={{ width:13, height:13, border:"2px solid #4ECDC4", borderTopColor:"transparent", borderRadius:"50%", animation:"spin 0.7s linear infinite" }}/>{t.locating}</>
+                  : newAddressData ? t.addFriendConfirm(newName) : t.addFriend}
+              </button>
+            </div>
+          </div>
+
+          {members.length>0 && (
+            <div style={{ background:th.surface, border:`1px solid ${th.border}`, borderRadius:20, padding:20, backdropFilter:"blur(20px)", boxShadow:"0 8px 32px rgba(0,0,0,0.15)", marginTop:"16px" }}>
+              <div style={{ fontFamily:"'Playfair Display',serif", fontSize:15, color:th.text, marginBottom:14, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                <span style={{ display:"flex", alignItems:"center", gap:8 }}>
+                  <span>📍</span> {t.members} <span style={{ fontSize:12, color:th.accent, fontFamily:"'DM Sans',sans-serif", fontWeight:600 }}>{members.length}</span>
+                </span>
+              </div>
+              <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                {members.map((m,i)=>(
+                  <div key={m.id} className="card-in hover-lift" style={{ animationDelay:`${i*0.05}s`, background:th.memberBg, borderRadius:12, padding:"12px 14px", border:`1px solid ${m.color}30`, display:"flex", alignItems:"center", gap:10 }}>
+                    <div style={{ width:38, height:38, borderRadius:12, background:m.color, display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, fontWeight:700, color:"white", flexShrink:0, boxShadow:`0 4px 12px ${m.color}50` }}>
+                      {m.name[0].toUpperCase()}
+                    </div>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ color:th.text, fontWeight:600, fontSize:13, marginBottom:2 }}>{m.name}</div>
+                      <div style={{ color:th.textSub, fontSize:11, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{m.address}</div>
+                      <div style={{ display:"flex", gap:4, marginTop:6 }}>
+                        {TRAVEL_MODES.map(tm=>(
+                          <button key={tm.id} onClick={()=>updateMode(m.id,tm.id)} title={t.travelModes[tm.id]}
+                            style={{ padding:"3px 7px", borderRadius:6, border:`1px solid ${m.mode===tm.id?m.color:th.inputBorder}`, background:m.mode===tm.id?`${m.color}20`:th.modeBg, cursor:"pointer", fontSize:12, transition:"all 0.15s" }}>
+                            {tm.icon}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <button onClick={()=>removeMember(m.id)}
+                      style={{ background:"rgba(255,107,107,0.1)", border:"1px solid rgba(255,107,107,0.2)", borderRadius:8, width:28, height:28, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", color:"#FF6B6B", fontSize:14, flexShrink:0, transition:"all 0.2s" }}
+                      onMouseEnter={e=>e.currentTarget.style.background="rgba(255,107,107,0.25)"}
+                      onMouseLeave={e=>e.currentTarget.style.background="rgba(255,107,107,0.1)"}>×</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          </div>
+
+          <div style={{ flexShrink:0, borderTop:`1px solid ${th.border}`, background:th.bg }}>
+            <div style={{ padding:"10px 20px 0", display:"flex", gap:6, flexWrap:"wrap" }}>
+              {VENUE_TYPES.map(type => {
+                const active = activeVenueTypes.has(type);
+                return (
+                  <button key={type} onClick={() => setActiveVenueTypes(prev => {
+                    const next = new Set(prev);
+                    if (next.has(type)) { if (next.size > 1) next.delete(type); }
+                    else next.add(type);
+                    return next;
+                  })} style={{
+                    padding:"4px 10px", borderRadius:20, border:"none", cursor:"pointer",
+                    fontFamily:"inherit", fontSize:11, fontWeight:600, transition:"all 0.15s",
+                    background: active ? "rgba(78,205,196,0.15)" : th.inputBg,
+                    color: active ? "#4ECDC4" : th.textSub,
+                    outline: active ? "1px solid rgba(78,205,196,0.4)" : `1px solid ${th.inputBorder}`,
+                  }}>
+                    {venueEmoji(type)} {t.venueTypes[type]}
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{ padding:"12px 20px", paddingBottom:"max(12px, env(safe-area-inset-bottom))", display:"flex", gap:10, alignItems:"center" }}>
+              {members.length >= 2 ? (
+                <button onClick={findMeetingSpots} disabled={loading}
+                  style={{ flex:1, background:"linear-gradient(135deg,#4ECDC4,#45B7D1)", border:"none", borderRadius:14, padding:"15px 20px", color:"#0d1117", fontFamily:"'DM Sans',sans-serif", fontWeight:700, fontSize:15, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:10, boxShadow:"0 4px 24px rgba(78,205,196,0.45)", transition:"all 0.2s" }}>
+                  {loading
+                    ? <><div style={{ width:16, height:16, border:"2px solid #0d1117", borderTopColor:"transparent", borderRadius:"50%", animation:"spin 0.7s linear infinite" }}/>{t.finding}</>
+                    : <>{t.findSpots}</>}
+                </button>
+              ) : (
+                <div style={{ flex:1, textAlign:"center", color:th.textSub, fontSize:12, padding:"8px 0" }}>
+                  {t.bottomTip}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Desktop header ── */}
+      {onboardingDone && (
+        <div style={{ position:"absolute", top:0, left:0, right:0, zIndex:1000, padding:"16px 24px", display:"flex", alignItems:"center", justifyContent:"space-between", background:th.headerGrad, pointerEvents:"none" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            <div style={{ width:36, height:36, borderRadius:10, background:"linear-gradient(135deg,#4ECDC4,#45B7D1)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, boxShadow:"0 4px 15px rgba(78,205,196,0.4)" }}>🗺️</div>
+            <div>
+              <div style={{ fontFamily:"'Playfair Display',serif", fontSize:18, fontWeight:700, color:th.text, letterSpacing:"-0.3px", lineHeight:1 }}>MeetInTheMiddle</div>
+              <div style={{ fontSize:10, color:th.accent, letterSpacing:"0.15em", textTransform:"uppercase", marginTop:2 }}>{t.appSubtitle}</div>
+            </div>
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:8, pointerEvents:"all" }}>
+            <button onClick={handleThemeChange} title={t.toggleTheme}
+              style={{ background:th.themeBtnBg, border:`1px solid ${th.themeBtnBorder}`, borderRadius:10, width:36, height:36, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", fontSize:16, backdropFilter:"blur(8px)", transition:"all 0.2s" }}
+              onMouseEnter={e=>e.currentTarget.style.borderColor=th.accent}
+              onMouseLeave={e=>e.currentTarget.style.borderColor=th.themeBtnBorder}>
+              {themeName==="dark" ? "☀️" : "🌙"}
+            </button>
+            <LangPicker locale={locale} onChange={handleLocaleChange} th={th} />
+            {step!=="friends" && (
+              <button onClick={()=>{ setStep("friends"); clearRoutes(); setSelectedVenue(null); }} style={{ background:th.themeBtnBg, border:`1px solid ${th.border}`, borderRadius:10, padding:"8px 16px", color:th.text, fontFamily:"'DM Sans',sans-serif", fontSize:12, cursor:"pointer", backdropFilter:"blur(8px)" }}>
+                {t.back}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Sidebar (Desktop / Mobile Bottom Sheet) ── */}
+      {onboardingDone && (
+        <div className="sidebar" style={{ "--sheet-vh": `${sheetVH}dvh`, transition: isDragging ? 'none' : 'height 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)' }}>
+          {/* Mobile Handle Zone */}
+          <div className="mobile-handle-zone" onMouseDown={pointerDown} onTouchStart={pointerDown}>
+            <div className="mobile-handle" />
+          </div>
+          
+          <div className="sidebar-content">
+            {step==="friends" && (
+              <>
+                <div style={{ background:th.surface, border:`1px solid ${th.border}`, borderRadius:20, padding:20, backdropFilter:"blur(20px)", boxShadow:"0 8px 32px rgba(0,0,0,0.15)" }}>
+                  <div style={{ fontFamily:"'Playfair Display',serif", fontSize:15, color:th.text, marginBottom:14, display:"flex", alignItems:"center", gap:8 }}>
+                    <span>👥</span> {t.addFriends}
+                  </div>
+                  <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                    <input value={newName} onChange={e=>setNewName(e.target.value)} placeholder={t.friendName}
+                      className="responsive-input"
+                      onKeyDown={e=>e.key==="Enter"&&document.getElementById("addr-input-sidebar")?.focus()}
+                      onFocus={handleStandardInputFocus} onBlur={e=>e.target.style.borderColor=th.inputBorder}
+                      style={{ background:th.inputBg, border:`1px solid ${th.inputBorder}`, borderRadius:10, padding:"10px 14px", color:th.text, fontFamily:"'DM Sans',sans-serif", transition:"border-color 0.2s" }}/>
+                    <AddressAutocomplete id="addr-input-sidebar" value={newAddress}
+                      onChange={v=>{ setNewAddress(v); setNewAddressData(null); }}
+                      onSelect={s=>{ setNewAddress(s.short||s.display.split(",").slice(0,2).join(",")); setNewAddressData(s); }}
+                      placeholder={t.searchAddress} onKeyDown={e=>e.key==="Enter"&&addMember()}
+                      locale={locale} t={t} th={th}/>
+                    
+                    <button onClick={locateMe} disabled={locatingMe || geocoding}
+                      style={{
+                        display:"flex", alignItems:"center", justifyContent:"center", gap:6,
+                        padding:"8px 14px", borderRadius:10, border:`1px solid ${th.inputBorder}`,
+                        background: th.inputBg, color: locatingMe ? th.accent : th.textSub,
+                        cursor: locatingMe ? "not-allowed" : "pointer",
+                        fontFamily:"'DM Sans',sans-serif", fontSize:12, fontWeight:500,
+                        transition:"all 0.2s", width:"100%",
+                      }}
+                      onMouseEnter={e => { if (!locatingMe) e.currentTarget.style.borderColor = th.accent; }}
+                      onMouseLeave={e => { e.currentTarget.style.borderColor = th.inputBorder; }}>
+                      {locatingMe
+                        ? <><div style={{ width:12, height:12, border:"2px solid #4ECDC4", borderTopColor:"transparent", borderRadius:"50%", animation:"spin 0.7s linear infinite" }}/>{t.locating}</>
+                        : <>📍 {locale === "he" ? "השתמש במיקומי" : "Use my location"}</>}
+                    </button>
+
+                    <div style={{ display:"flex", gap:6 }}>
+                      {TRAVEL_MODES.map(m=>(
+                        <button key={m.id} onClick={()=>setNewMode(m.id)} title={t.travelModes[m.id]}
+                          style={{ flex:1, padding:"9px 4px", borderRadius:10, border:`2px solid ${newMode===m.id?"#4ECDC4":th.inputBorder}`, background:newMode===m.id?"rgba(78,205,196,0.15)":th.modeBg, cursor:"pointer", fontSize:18, transition:"all 0.2s" }}>
+                          {m.icon}
+                        </button>
+                      ))}
+                    </div>
+                    {newMode==="transit" && (
+                      <div style={{ fontSize:10, color:th.textSub, padding:"4px 8px", background:th.inputBg, borderRadius:6, border:`1px solid ${th.inputBorder}` }}>
+                        🚌 {t.transitNote}
+                      </div>
+                    )}
+                    {error && <div style={{ color:"#FF6B6B", fontSize:12, padding:"6px 10px", background:"rgba(255,107,107,0.1)", borderRadius:8 }}>{error}</div>}
+                    <button onClick={addMember} disabled={geocoding||!newName.trim()||!newAddress.trim()}
+                      style={{ background:!newName.trim()||!newAddress.trim()?"rgba(78,205,196,0.2)":"linear-gradient(135deg,#4ECDC4,#45B7D1)", border:"none", borderRadius:10, padding:"11px", color:!newName.trim()||!newAddress.trim()?"#4ECDC4":"#0d1117", fontFamily:"'DM Sans',sans-serif", fontWeight:700, fontSize:13, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8, transition:"all 0.2s" }}>
+                      {geocoding ? <><div style={{ width:13, height:13, border:"2px solid #4ECDC4", borderTopColor:"transparent", borderRadius:"50%", animation:"spin 0.7s linear infinite" }}/>{t.locating}</>
+                        : newAddressData ? t.addFriendConfirm(newName) : t.addFriend}
+                    </button>
+                  </div>
+                </div>
+
+                {members.length>0 && (
+                  <div style={{ background:th.surface, border:`1px solid ${th.border}`, borderRadius:20, padding:20, backdropFilter:"blur(20px)", boxShadow:"0 8px 32px rgba(0,0,0,0.15)", marginTop: "12px" }}>
+                    <div style={{ fontFamily:"'Playfair Display',serif", fontSize:15, color:th.text, marginBottom:14, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                      <span style={{ display:"flex", alignItems:"center", gap:8 }}>
+                        <span>📍</span> {t.members} <span style={{ fontSize:12, color:th.accent, fontFamily:"'DM Sans',sans-serif", fontWeight:600 }}>{members.length}</span>
+                      </span>
+                      {members.length>=2 && step==="friends" && (
+                        <button onClick={findMeetingSpots} disabled={loading} style={{ background:"linear-gradient(135deg,#4ECDC4,#45B7D1)", border:"none", borderRadius:8, padding:"6px 14px", color:"#0d1117", fontFamily:"'DM Sans',sans-serif", fontWeight:700, fontSize:12, cursor:"pointer" }}>
+                          {loading?t.finding:t.findSpots}
+                        </button>
+                      )}
+                    </div>
+                    <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                      {members.map((m,i)=>(
+                        <div key={m.id} className="card-in hover-lift" style={{ animationDelay:`${i*0.05}s`, background:th.memberBg, borderRadius:12, padding:"12px 14px", border:`1px solid ${m.color}30`, display:"flex", alignItems:"center", gap:10 }}>
+                          <div style={{ width:38, height:38, borderRadius:12, background:m.color, display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, fontWeight:700, color:"white", flexShrink:0, boxShadow:`0 4px 12px ${m.color}50` }}>
+                            {m.name[0].toUpperCase()}
+                          </div>
+                          <div style={{ flex:1, minWidth:0 }}>
+                            <div style={{ color:th.text, fontWeight:600, fontSize:13, marginBottom:2 }}>{m.name}</div>
+                            <div style={{ color:th.textSub, fontSize:11, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{m.address}</div>
+                            <div style={{ display:"flex", gap:4, marginTop:6 }}>
+                              {TRAVEL_MODES.map(tm=>(
+                                <button key={tm.id} onClick={()=>updateMode(m.id,tm.id)} title={t.travelModes[tm.id]}
+                                  style={{ padding:"3px 7px", borderRadius:6, border:`1px solid ${m.mode===tm.id?m.color:th.inputBorder}`, background:m.mode===tm.id?`${m.color}20`:th.modeBg, cursor:"pointer", fontSize:12, transition:"all 0.15s" }}>
+                                  {tm.icon}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                          <button onClick={()=>removeMember(m.id)}
+                            style={{ background:"rgba(255,107,107,0.1)", border:"1px solid rgba(255,107,107,0.2)", borderRadius:8, width:28, height:28, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", color:"#FF6B6B", fontSize:14, flexShrink:0, transition:"all 0.2s" }}
+                            onMouseEnter={e=>e.currentTarget.style.background="rgba(255,107,107,0.25)"}
+                            onMouseLeave={e=>e.currentTarget.style.background="rgba(255,107,107,0.1)"}>×</button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {step==="results" && venues.length>0 && (
+              <div style={{ background:th.surface, border:`1px solid ${th.border}`, borderRadius:20, padding:20, backdropFilter:"blur(20px)", boxShadow:"0 8px 32px rgba(0,0,0,0.25)", transition:"background 0.3s" }}>
+                <div style={{ fontFamily:"'Playfair Display',serif", fontSize:15, color:th.text, marginBottom:14, display:"flex", alignItems:"center", gap:8 }}>
+                  <span>✦</span> {t.bestSpots}
+                  <span style={{ fontSize:11, color:th.textSub, fontFamily:"'DM Sans',sans-serif", fontWeight:400, marginLeft:"auto" }}>{t.tapToSeeRoutes}</span>
+                </div>
+                <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                  {venues.map((v,i)=>(
+                    <div key={v.id} className="venue-card hover-lift" style={{ animationDelay:`${i*0.04}s`, background:selectedVenue?.id===v.id?"rgba(78,205,196,0.1)":th.venueBg, borderRadius:14, padding:"12px 14px", border:`1px solid ${selectedVenue?.id===v.id?"#4ECDC4":th.border}`, cursor:"pointer", transition:"all 0.2s" }} onClick={()=>selectVenue(v)}>
+                      <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                        <div style={{ width:40, height:40, borderRadius:12, background:i===0?"rgba(255,217,61,0.15)":"rgba(78,205,196,0.1)", border:`1px solid ${i===0?"rgba(255,217,61,0.3)":"rgba(78,205,196,0.2)"}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, flexShrink:0 }}>
+                          {venueEmoji(v.type)}
+                        </div>
+                        <div style={{ flex:1, minWidth:0 }}>
+                          <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                            {i===0 && <span style={{ fontSize:9, background:"linear-gradient(135deg,#FFD93D,#FF6B6B)", color:"#0d1117", padding:"2px 6px", borderRadius:4, fontWeight:700, letterSpacing:"0.05em" }}>{t.best}</span>}
+                            <div style={{ color:th.text, fontWeight:600, fontSize:13, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{v.name}</div>
+                          </div>
+                          <div style={{ color:th.textSub, fontSize:11, marginTop:2 }}>{t.venueTypes[v.type]||v.type} · {Math.round(v.mean)} {t.min} {t.avgLabel}</div>
+                        </div>
+                        <div style={{ color:th.accent, fontSize:16 }}>
+                          <span style={isRtl ? { display:"inline-block", transform:"scaleX(-1)" } : {}}>→</span>
+                        </div>
+                      </div>
+                      <div style={{ display:"flex", gap:5, marginTop:8, flexWrap:"wrap" }}>
+                        {members.filter(m=>m.latlng).map((m,mi)=>(
+                          <div key={m.id} style={{ display:"flex", alignItems:"center", gap:4, background:`${m.color}15`, border:`1px solid ${m.color}30`, borderRadius:6, padding:"3px 8px" }}>
+                            <div style={{ width:8, height:8, borderRadius:"50%", background:m.color }}/>
+                            <span style={{ fontSize:10, color:th.chipText }}>
+                              {TRAVEL_MODES.find(tm=>tm.id===m.mode)?.icon} {Math.round(v.times?.[mi] ?? v.dists[mi])} {t.min}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {step==="routes" && selectedVenue && (
+              <div style={{ background:th.surface, border:`1px solid ${th.accent}33`, borderRadius:20, padding:20, backdropFilter:"blur(20px)", boxShadow:"0 8px 32px rgba(0,0,0,0.4)" }}>
+                <div style={{ fontFamily:"'Playfair Display',serif", fontSize:15, color:th.text, marginBottom:4 }}>{venueEmoji(selectedVenue.type)} {selectedVenue.name}</div>
+                <div style={{ color:th.textSub, fontSize:11, textTransform:"capitalize", marginBottom:16 }}>{t.venueTypes[selectedVenue.type]||selectedVenue.type}</div>
+                {loadingRoutes ? (
+                  <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                    {members.map(m=>(
+                      <div key={m.id} style={{ height:56, borderRadius:12, background:`linear-gradient(90deg,${m.color}10,${m.color}05)`, border:`1px solid ${m.color}20`, display:"flex", alignItems:"center", padding:"0 14px", gap:10 }}>
+                        <div style={{ width:24, height:24, borderRadius:"50%", background:m.color, opacity:0.3 }}/>
+                        <div style={{ flex:1, height:10, background:th.skeletonBg, borderRadius:5 }}/>
+                        <div style={{ width:14, height:14, border:`2px solid ${m.color}`, borderTopColor:"transparent", borderRadius:"50%", animation:"spin 0.7s linear infinite" }}/>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                    {routes.map(({member:m,route})=>(
+                      <div key={m.id} style={{ background:`${m.color}10`, borderRadius:12, padding:"12px 14px", border:`1px solid ${m.color}30` }}>
+                        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                          <div style={{ width:34, height:34, borderRadius:10, background:m.color, display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, fontWeight:700, color:"white", flexShrink:0 }}>{m.name[0].toUpperCase()}</div>
+                          <div style={{ flex:1 }}>
+                            <div style={{ color:th.text, fontWeight:600, fontSize:13 }}>{m.name}</div>
+                            <div style={{ color:th.textSub, fontSize:11, marginTop:2 }}>
+                              {TRAVEL_MODES.find(tm=>tm.id===m.mode)?.icon} {t.travelModes[m.mode]}
+                            </div>
+                          </div>
+                          <div style={{ textAlign:isRtl ? "left" : "right" }}>
+                            <div style={{ color:m.color, fontWeight:700, fontSize:15 }}>{fmtDuration(route?.duration,t)}</div>
+                            <div style={{ color:th.textSub, fontSize:11 }}>{fmtDist(route?.distance)}</div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    <button onClick={handleBackToResults} style={{ marginTop:4, background:th.themeBtnBg, border:`1px solid ${th.border}`, borderRadius:10, padding:"9px", color:th.textSub, fontFamily:"'DM Sans',sans-serif", fontSize:12, cursor:"pointer" }}>
+                      {t.backToSpots}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {loading && (
+              <div style={{ background:th.surface, border:`1px solid ${th.accent}33`, borderRadius:20, padding:24, backdropFilter:"blur(20px)", textAlign:"center" }}>
+                <div style={{ fontSize:28, marginBottom:10 }}>🔍</div>
+                <div style={{ color:th.accent, fontSize:13, fontWeight:600, marginBottom:4 }}>{t.findingSpots}</div>
+                <div style={{ color:th.textSub, fontSize:11 }}>{t.searchingVenues}</div>
+                <div style={{ display:"flex", justifyContent:"center", gap:6, marginTop:14 }}>
+                  {[0,1,2].map(i=><div key={i} style={{ width:8, height:8, borderRadius:"50%", background:th.accent, animation:`pulse 1.2s ${i*0.2}s ease-in-out infinite` }}/>)}
+                </div>
+              </div>
+            )}
+
+          </div>
+          
+          <div style={{ flexShrink:0, borderTop:`1px solid ${th.border}`, background:th.bg }}>
+            <div style={{ padding:"10px 20px 0", display:"flex", gap:6, flexWrap:"wrap" }}>
+              {VENUE_TYPES.map(type => {
+                const active = activeVenueTypes.has(type);
+                return (
+                  <button key={type} onClick={() => setActiveVenueTypes(prev => {
+                    const next = new Set(prev);
+                    if (next.has(type)) { if (next.size > 1) next.delete(type); }
+                    else next.add(type);
+                    return next;
+                  })} style={{
+                    padding:"4px 10px", borderRadius:20, border:"none", cursor:"pointer",
+                    fontFamily:"inherit", fontSize:11, fontWeight:600, transition:"all 0.15s",
+                    background: active ? "rgba(78,205,196,0.15)" : th.inputBg,
+                    color: active ? "#4ECDC4" : th.textSub,
+                    outline: active ? "1px solid rgba(78,205,196,0.4)" : `1px solid ${th.inputBorder}`,
+                  }}>
+                    {venueEmoji(type)} {t.venueTypes[type]}
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{ padding:"12px 20px", paddingBottom:"max(12px, env(safe-area-inset-bottom))", display:"flex", gap:10, alignItems:"center" }}>
+              {members.length >= 2 ? (
+                <button onClick={findMeetingSpots} disabled={loading}
+                  style={{ flex:1, background:"linear-gradient(135deg,#4ECDC4,#45B7D1)", border:"none", borderRadius:14, padding:"15px 20px", color:"#0d1117", fontFamily:"'DM Sans',sans-serif", fontWeight:700, fontSize:15, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:10, boxShadow:"0 4px 24px rgba(78,205,196,0.45)", transition:"all 0.2s" }}>
+                  {loading
+                    ? <><div style={{ width:16, height:16, border:"2px solid #0d1117", borderTopColor:"transparent", borderRadius:"50%", animation:"spin 0.7s linear infinite" }}/>{t.finding}</>
+                    : <>{t.findSpots}</>}
+                </button>
+              ) : (
+                <div style={{ flex:1, textAlign:"center", color:th.textSub, fontSize:12, padding:"8px 0" }}>
+                  {t.bottomTip}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Attribution */}
+      {onboardingDone && (
+        <div style={{ position:"absolute", bottom:8, right:8, zIndex:100, color:th.textFaint, fontSize:9, pointerEvents:"none", textAlign:isRtl ? "left" : "right", left:isRtl ? 8 : "auto" }}>
+          {t.attribution.map((line,i)=><div key={i}>{line}</div>)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+  </script>
+</body>
+</html>
