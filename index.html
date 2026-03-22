@@ -53,7 +53,7 @@ const TRANSLATIONS = {
     errNeedTwo: "Add at least 2 members with valid addresses.",
     errNoVenues: "No venues found nearby. Try different addresses.",
     meetingMidpoint: "Meeting midpoint",
-    attribution: ["Maps © OpenStreetMap · Routing © OSRM", "Venues © OpenStreetMap contributors"],
+    attribution: ["Maps © OpenStreetMap · Routing © OSRM", "Venues © OpenStreetMap contributors · v1.3"],
     travelModes: { "foot-walking": "Walk", "cycling-regular": "Cycle", "driving-car": "Drive", transit: "Transit" },
     venueTypes: { restaurant:"restaurant", cafe:"cafe", bar:"bar", pub:"pub", cinema:"cinema", park:"park", museum:"museum", theatre:"theatre" },
     min: "min", 
@@ -96,7 +96,7 @@ const TRANSLATIONS = {
     errNeedTwo: "הוסף לפחות 2 משתתפים עם כתובות תקינות.",
     errNoVenues: "לא נמצאו מקומות בסביבה. נסה כתובות אחרות.",
     meetingMidpoint: "נקודת המפגש",
-    attribution: ["מפות © OpenStreetMap · ניווט © OSRM", "מקומות © תורמי OpenStreetMap"],
+    attribution: ["מפות © OpenStreetMap · ניווט © OSRM", "מקומות © תורמי OpenStreetMap · v1.3"],
     travelModes: { "foot-walking": "הליכה", "cycling-regular": "אופניים", "driving-car": "רכב", transit: "תחבורה" },
     venueTypes: { restaurant:"מסעדה", cafe:"בית קפה", bar:"בר", pub:"פאב", cinema:"קולנוע", park:"פארק", museum:"מוזיאון", theatre:"תיאטרון" },
     min: "דק׳", 
@@ -533,7 +533,7 @@ function App() {
   const [newName, setNewName] = useState("");
   const [newAddress, setNewAddress] = useState("");
   const [newAddressData, setNewAddressData] = useState(null);
-  const [newMode, setNewMode] = useState("foot-walking");
+  const [newMode, setNewMode] = useState("driving-car");
   const [geocoding, setGeocoding] = useState(false);
   const [locatingMe, setLocatingMe] = useState(false);
   const [error, setError] = useState("");
@@ -691,7 +691,7 @@ function App() {
     }
     const member = { id:uid(), name:newName.trim(), address:newAddress.trim(), latlng:{lat:latlng.lat,lng:latlng.lng}, displayAddress:latlng.display, mode:newMode, color:MEMBER_COLORS[members.length%MEMBER_COLORS.length] };
     const updated = [...members, member];
-    setMembers(updated); setNewName(""); setNewAddress(""); setNewAddressData(null); setNewMode("foot-walking");
+    setMembers(updated); setNewName(""); setNewAddress(""); setNewAddressData(null); setNewMode("driving-car");
     allScoredRef.current = [];
     setVenues([]); setSelectedVenue(null); setRoutes([]); setStep("friends");
     clearVenueMarkers(); clearRoutes(); updateMemberMarkers(updated);
@@ -1399,7 +1399,7 @@ function App() {
                           <div key={m.id} style={{ display:"flex", alignItems:"center", gap:4, background:`${m.color}15`, border:`1px solid ${m.color}30`, borderRadius:6, padding:"3px 8px" }}>
                             <div style={{ width:8, height:8, borderRadius:"50%", background:m.color }}/>
                             <span style={{ fontSize:10, color:th.chipText }}>
-                              {TRAVEL_MODES.find(tm=>tm.id===m.mode)?.icon} {Math.round(v.times?.[mi] ?? v.dists[mi])} {t.min}
+                              <span style={{ fontWeight:600, color:m.color }}>{m.name.split(" ")[0]}</span> {TRAVEL_MODES.find(tm=>tm.id===m.mode)?.icon} {Math.round(v.times?.[mi] ?? (v.dists[mi] / (TRAVEL_MODES.find(tm=>tm.id===m.mode)?.kmph||5) * 60))} {t.min}
                             </span>
                           </div>
                         ))}
