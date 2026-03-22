@@ -555,6 +555,7 @@ function App() {
   const centroidMarkerRef = useRef(null);
   const leafletRef = useRef(null);
   const tileLayerRef = useRef(null);
+  const allScoredRef = useRef([]); // Holds all fetched venues for dynamic filtering
 
   const handleLocaleChange = useCallback((l) => {
     setLocale(l);
@@ -648,11 +649,12 @@ function App() {
     routeLayersRef.current = [];
   }, []);
 
-  const clearVenueMarkers = useCallback(() => {
+  // Update clearVenueMarkers to optionally preserve the centroid marker
+  const clearVenueMarkers = useCallback((keepCentroid = false) => {
     if (!mapInstanceRef.current) return;
     venueMarkersRef.current.forEach(m=>mapInstanceRef.current.removeLayer(m)); 
     venueMarkersRef.current = [];
-    if (centroidMarkerRef.current) { 
+    if (!keepCentroid && centroidMarkerRef.current) { 
       mapInstanceRef.current.removeLayer(centroidMarkerRef.current); 
       centroidMarkerRef.current = null; 
     }
@@ -690,13 +692,16 @@ function App() {
     const member = { id:uid(), name:newName.trim(), address:newAddress.trim(), latlng:{lat:latlng.lat,lng:latlng.lng}, displayAddress:latlng.display, mode:newMode, color:MEMBER_COLORS[members.length%MEMBER_COLORS.length] };
     const updated = [...members, member];
     setMembers(updated); setNewName(""); setNewAddress(""); setNewAddressData(null); setNewMode("foot-walking");
+    allScoredRef.current = [];
     setVenues([]); setSelectedVenue(null); setRoutes([]); setStep("friends");
     clearVenueMarkers(); clearRoutes(); updateMemberMarkers(updated);
   }, [newName, newAddress, newAddressData, newMode, members, locale, t, clearVenueMarkers, clearRoutes, updateMemberMarkers]);
 
   const removeMember = useCallback((id) => {
     const updated = members.filter(m=>m.id!==id);
-    setMembers(updated); setVenues([]); setSelectedVenue(null); setRoutes([]); setStep("friends");
+    setMembers(updated);
+    allScoredRef.current = [];
+    setVenues([]); setSelectedVenue(null); setRoutes([]); setStep("friends");
     clearVenueMarkers(); clearRoutes(); updateMemberMarkers(updated);
   }, [members, clearVenueMarkers, clearRoutes, updateMemberMarkers]);
 
@@ -763,14 +768,14 @@ function App() {
     let allVenuesSeen = new Map();
 
     for (let iter = 0; iter < ITERATIONS; iter++) {
-      // 0. Fetch venues around the current center to build our candidate pool
+      // 0. Fetch ALL venues around the current center to build our candidate pool (ignores active filter)
       const radius = iter === 0 ? 2 : 2.5;
-      let raw = await fetchVenues(centroid, radius, Array.from(activeVenueTypes));
+      let raw = await fetchVenues(centroid, radius);
 
       // If iter 0 returns nothing, expand radius progressively before giving up
       if (iter === 0 && !raw.length) {
         for (const expandedRadius of [5, 10, 20, 40]) {
-          raw = await fetchVenues(centroid, expandedRadius, Array.from(activeVenueTypes));
+          raw = await fetchVenues(centroid, expandedRadius);
           if (raw.length) break;
         }
       }
@@ -865,15 +870,19 @@ function App() {
       }
     }
 
-    setVenues(bestScored);
+    allScoredRef.current = bestScored;
+    const filtered = bestScored.filter(v => activeVenueTypes.has(v.type));
+    const displayVenues = filtered.length ? filtered : bestScored;
+    setVenues(displayVenues);
+    
     clearVenueMarkers();
     const L = leafletRef.current;
     
-    bestScored.forEach((v,i) => {
+    displayVenues.forEach((v,i) => {
       const icon = L.divIcon({ className:"", html:`<div style="width:32px;height:32px;border-radius:8px;background:${i===0?"#FFD93D":"#2d3250"};border:2px solid ${i===0?"#fff":"#4ECDC4"};display:flex;align-items:center;justify-content:center;font-size:13px;box-shadow:0 4px 12px rgba(0,0,0,0.5);cursor:pointer;">${venueEmoji(v.type)}</div>`, iconSize:[32,32], iconAnchor:[16,16] });
       const mk = L.marker([v.lat,v.lng],{icon}).addTo(mapInstanceRef.current);
       mk.bindTooltip(`<b>${v.name}</b><br/><small>${t.venueTypes[v.type]||v.type}</small>`);
-      mk.on("click",()=>selectVenue(v,bestScored));
+      mk.on("click",()=>selectVenue(v,displayVenues));
       venueMarkersRef.current.push(mk);
     });
     
@@ -881,8 +890,8 @@ function App() {
     centroidMarkerRef.current = L.marker([centroid.lat,centroid.lng],{icon:cIcon}).addTo(mapInstanceRef.current);
     centroidMarkerRef.current.bindTooltip(t.meetingMidpoint);
     
-    const allPts = [...validMembers.map(m=>[m.latlng.lat,m.latlng.lng]),...bestScored.map(v=>[v.lat,v.lng])];
-    mapInstanceRef.current.fitBounds(L.latLngBounds(allPts),{padding:[80,80]});
+    const allPts = [...validMembers.map(m=>[m.latlng.lat,m.latlng.lng]),...displayVenues.map(v=>[v.lat,v.lng])];
+    if(allPts.length) mapInstanceRef.current.fitBounds(L.latLngBounds(allPts),{padding:[80,80]});
     setStep("results"); setLoading(false);
   }, [members, t, clearRoutes, clearVenueMarkers, scoreVenues, onboardingDone, activeVenueTypes]);
 
@@ -918,6 +927,46 @@ function App() {
       if (list[i]?.id===venue.id) mk.setIcon(L.divIcon({ className:"", html:`<div style="width:40px;height:40px;border-radius:10px;background:#FFD93D;border:3px solid white;display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 6px 20px rgba(0,0,0,0.6);">${venueEmoji(venue.type)}</div>`, iconSize:[40,40], iconAnchor:[20,20] }));
     });
   }, [members, venues, clearRoutes]);
+
+  // ─── DYNAMIC FILTERING EFFECT ──────────────────────────────────────────────────
+  const prevActiveTypesRef = useRef(activeVenueTypes);
+  useEffect(() => {
+    if (prevActiveTypesRef.current === activeVenueTypes) return;
+    prevActiveTypesRef.current = activeVenueTypes;
+    
+    if (!allScoredRef.current.length) return;
+    
+    const filtered = allScoredRef.current.filter(v => activeVenueTypes.has(v.type));
+    const displayVenues = filtered.length ? filtered : allScoredRef.current;
+    
+    setVenues(displayVenues);
+    clearVenueMarkers(true); // Retain the centroid marker
+    
+    const L = leafletRef.current;
+    if (!L || !mapInstanceRef.current) return;
+    
+    displayVenues.forEach((v, i) => {
+      const icon = L.divIcon({ className:"", html:`<div style="width:32px;height:32px;border-radius:8px;background:${i===0?"#FFD93D":"#2d3250"};border:2px solid ${i===0?"#fff":"#4ECDC4"};display:flex;align-items:center;justify-content:center;font-size:13px;box-shadow:0 4px 12px rgba(0,0,0,0.5);cursor:pointer;">${venueEmoji(v.type)}</div>`, iconSize:[32,32], iconAnchor:[16,16] });
+      const mk = L.marker([v.lat, v.lng], {icon}).addTo(mapInstanceRef.current);
+      mk.bindTooltip(`<b>${v.name}</b><br/><small>${t.venueTypes[v.type]||v.type}</small>`);
+      mk.on("click", () => selectVenue(v, displayVenues));
+      venueMarkersRef.current.push(mk);
+    });
+
+    setStep(prev => {
+      if (prev === "routes") {
+        clearRoutes();
+        setSelectedVenue(null);
+        setTimeout(() => {
+          const valid = members.filter(m=>m.latlng);
+          const allPts = [...valid.map(m=>[m.latlng.lat,m.latlng.lng]), ...displayVenues.map(v=>[v.lat,v.lng])];
+          if (allPts.length && mapInstanceRef.current) mapInstanceRef.current.fitBounds(L.latLngBounds(allPts), {padding:[80,80]});
+        }, 10);
+        return "results";
+      }
+      return prev;
+    });
+  }, [activeVenueTypes, clearVenueMarkers, selectVenue, t, members, clearRoutes]);
 
   const handleBackToResults = useCallback(() => {
     setStep("results"); clearRoutes(); setSelectedVenue(null);
@@ -989,6 +1038,9 @@ function App() {
             background: ${th.border}; margin: 0 auto; 
           }
           .sidebar-content { margin:0; padding:0 16px 20px; overflow-y: auto; flex: 1; }
+          .desktop-header-buttons { gap: 6px !important; }
+          .desktop-header-buttons button { padding: 6px 10px !important; }
+          .desktop-header { padding: 12px 12px !important; }
         }
 
         /* Onboarding overlay */
@@ -1166,6 +1218,11 @@ function App() {
               })}
             </div>
             <div style={{ padding:"12px 20px", paddingBottom:"max(12px, env(safe-area-inset-bottom))", display:"flex", gap:10, alignItems:"center" }}>
+              {step!=="friends" && (
+                <button onClick={()=>{ setStep("friends"); clearRoutes(); setSelectedVenue(null); }} style={{ background:th.themeBtnBg, border:`1px solid ${th.border}`, borderRadius:12, padding:"15px 16px", color:th.text, fontFamily:"'DM Sans',sans-serif", fontWeight:600, fontSize:15, cursor:"pointer", whiteSpace:"nowrap" }}>
+                  {t.back}
+                </button>
+              )}
               {members.length >= 2 ? (
                 <button onClick={findMeetingSpots} disabled={loading}
                   style={{ flex:1, background:"linear-gradient(135deg,#4ECDC4,#45B7D1)", border:"none", borderRadius:14, padding:"15px 20px", color:"#0d1117", fontFamily:"'DM Sans',sans-serif", fontWeight:700, fontSize:15, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:10, boxShadow:"0 4px 24px rgba(78,205,196,0.45)", transition:"all 0.2s" }}>
@@ -1185,7 +1242,7 @@ function App() {
 
       {/* ── Desktop header ── */}
       {onboardingDone && (
-        <div style={{ position:"absolute", top:0, left:0, right:0, zIndex:1000, padding:"16px 24px", display:"flex", alignItems:"center", justifyContent:"space-between", background:th.headerGrad, pointerEvents:"none" }}>
+        <div className="desktop-header" style={{ position:"absolute", top:0, left:0, right:0, zIndex:1001, padding:"16px 24px", display:"flex", alignItems:"center", justifyContent:"space-between", background:th.headerGrad, pointerEvents:"none" }}>
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
             <div style={{ width:36, height:36, borderRadius:10, background:"linear-gradient(135deg,#4ECDC4,#45B7D1)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, boxShadow:"0 4px 15px rgba(78,205,196,0.4)" }}>🗺️</div>
             <div>
@@ -1193,7 +1250,7 @@ function App() {
               <div style={{ fontSize:10, color:th.accent, letterSpacing:"0.15em", textTransform:"uppercase", marginTop:2 }}>{t.appSubtitle}</div>
             </div>
           </div>
-          <div style={{ display:"flex", alignItems:"center", gap:8, pointerEvents:"all" }}>
+          <div className="desktop-header-buttons" style={{ display:"flex", alignItems:"center", gap:8, pointerEvents:"all" }}>
             <button onClick={handleThemeChange} title={t.toggleTheme}
               style={{ background:th.themeBtnBg, border:`1px solid ${th.themeBtnBorder}`, borderRadius:10, width:36, height:36, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", fontSize:16, backdropFilter:"blur(8px)", transition:"all 0.2s" }}
               onMouseEnter={e=>e.currentTarget.style.borderColor=th.accent}
@@ -1201,11 +1258,6 @@ function App() {
               {themeName==="dark" ? "☀️" : "🌙"}
             </button>
             <LangPicker locale={locale} onChange={handleLocaleChange} th={th} />
-            {step!=="friends" && (
-              <button onClick={()=>{ setStep("friends"); clearRoutes(); setSelectedVenue(null); }} style={{ background:th.themeBtnBg, border:`1px solid ${th.border}`, borderRadius:10, padding:"8px 16px", color:th.text, fontFamily:"'DM Sans',sans-serif", fontSize:12, cursor:"pointer", backdropFilter:"blur(8px)" }}>
-                {t.back}
-              </button>
-            )}
           </div>
         </div>
       )}
@@ -1390,9 +1442,22 @@ function App() {
                         </div>
                       </div>
                     ))}
-                    <button onClick={handleBackToResults} style={{ marginTop:4, background:th.themeBtnBg, border:`1px solid ${th.border}`, borderRadius:10, padding:"9px", color:th.textSub, fontFamily:"'DM Sans',sans-serif", fontSize:12, cursor:"pointer" }}>
-                      {t.backToSpots}
-                    </button>
+                    <div style={{ display:"flex", gap:8, marginTop:4 }}>
+                      <button onClick={handleBackToResults} style={{ flex:1, background:th.themeBtnBg, border:`1px solid ${th.border}`, borderRadius:10, padding:"9px", color:th.textSub, fontFamily:"'DM Sans',sans-serif", fontSize:12, cursor:"pointer" }}>
+                        {t.backToSpots}
+                      </button>
+                      <button onClick={async () => {
+                        const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(selectedVenue.name)}&query_place_id=${selectedVenue.id}`;
+                        const text = `${venueEmoji(selectedVenue.type)} ${selectedVenue.name}\n${mapsUrl}`;
+                        if (navigator.share) {
+                          try { await navigator.share({ title: "MeetInTheMiddle", text }); } catch(_) {}
+                        } else {
+                          try { await navigator.clipboard.writeText(text); alert("Copied to clipboard!"); } catch(_) {}
+                        }
+                      }} style={{ background:"rgba(78,205,196,0.1)", border:"1px solid rgba(78,205,196,0.3)", borderRadius:10, padding:"9px 14px", color:th.accent, fontFamily:"'DM Sans',sans-serif", fontSize:16, cursor:"pointer" }}>
+                        🔗
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -1434,6 +1499,11 @@ function App() {
               })}
             </div>
             <div style={{ padding:"12px 20px", paddingBottom:"max(12px, env(safe-area-inset-bottom))", display:"flex", gap:10, alignItems:"center" }}>
+              {step!=="friends" && (
+                <button onClick={()=>{ setStep("friends"); clearRoutes(); setSelectedVenue(null); }} style={{ background:th.themeBtnBg, border:`1px solid ${th.border}`, borderRadius:12, padding:"15px 16px", color:th.text, fontFamily:"'DM Sans',sans-serif", fontWeight:600, fontSize:15, cursor:"pointer", whiteSpace:"nowrap" }}>
+                  {t.back}
+                </button>
+              )}
               {members.length >= 2 ? (
                 <button onClick={findMeetingSpots} disabled={loading}
                   style={{ flex:1, background:"linear-gradient(135deg,#4ECDC4,#45B7D1)", border:"none", borderRadius:14, padding:"15px 20px", color:"#0d1117", fontFamily:"'DM Sans',sans-serif", fontWeight:700, fontSize:15, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:10, boxShadow:"0 4px 24px rgba(78,205,196,0.45)", transition:"all 0.2s" }}>
