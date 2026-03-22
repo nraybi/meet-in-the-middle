@@ -1038,6 +1038,7 @@ function App() {
             background: ${th.border}; margin: 0 auto; 
           }
           .sidebar-content { margin:0; padding:0 16px 20px; overflow-y: auto; flex: 1; }
+          .sidebar { padding-bottom: env(safe-area-inset-bottom); }
           .desktop-header-buttons { gap: 6px !important; }
           .desktop-header-buttons button { padding: 6px 10px !important; }
           .desktop-header { padding: 12px 12px !important; }
@@ -1217,7 +1218,7 @@ function App() {
                 );
               })}
             </div>
-            <div style={{ padding:"12px 20px", paddingBottom:"max(12px, env(safe-area-inset-bottom))", display:"flex", gap:10, alignItems:"center" }}>
+            <div style={{ padding:"12px 20px", paddingBottom:"max(20px, env(safe-area-inset-bottom))", display:"flex", gap:10, alignItems:"center" }}>
               {step!=="friends" && (
                 <button onClick={()=>{ setStep("friends"); clearRoutes(); setSelectedVenue(null); }} style={{ background:th.themeBtnBg, border:`1px solid ${th.border}`, borderRadius:12, padding:"15px 16px", color:th.text, fontFamily:"'DM Sans',sans-serif", fontWeight:600, fontSize:15, cursor:"pointer", whiteSpace:"nowrap" }}>
                   {t.back}
@@ -1498,7 +1499,7 @@ function App() {
                 );
               })}
             </div>
-            <div style={{ padding:"12px 20px", paddingBottom:"max(12px, env(safe-area-inset-bottom))", display:"flex", gap:10, alignItems:"center" }}>
+            <div style={{ padding:"12px 20px", paddingBottom:"max(20px, env(safe-area-inset-bottom))", display:"flex", gap:10, alignItems:"center" }}>
               {step!=="friends" && (
                 <button onClick={()=>{ setStep("friends"); clearRoutes(); setSelectedVenue(null); }} style={{ background:th.themeBtnBg, border:`1px solid ${th.border}`, borderRadius:12, padding:"15px 16px", color:th.text, fontFamily:"'DM Sans',sans-serif", fontWeight:600, fontSize:15, cursor:"pointer", whiteSpace:"nowrap" }}>
                   {t.back}
