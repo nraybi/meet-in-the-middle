@@ -53,7 +53,7 @@ const TRANSLATIONS = {
     errNeedTwo: "Add at least 2 members with valid addresses.",
     errNoVenues: "No venues found nearby. Try different addresses.",
     meetingMidpoint: "Meeting midpoint",
-    attribution: ["Maps © OpenStreetMap · Routing © OSRM", "Venues © OpenStreetMap contributors · v1.3"],
+    attribution: ["Maps © OpenStreetMap · Routing © OSRM", "Venues © OpenStreetMap contributors · v1.4"],
     travelModes: { "foot-walking": "Walk", "cycling-regular": "Cycle", "driving-car": "Drive", transit: "Transit" },
     venueTypes: { restaurant:"restaurant", cafe:"cafe", bar:"bar", pub:"pub", cinema:"cinema", park:"park", museum:"museum", theatre:"theatre" },
     min: "min", 
@@ -96,7 +96,7 @@ const TRANSLATIONS = {
     errNeedTwo: "הוסף לפחות 2 משתתפים עם כתובות תקינות.",
     errNoVenues: "לא נמצאו מקומות בסביבה. נסה כתובות אחרות.",
     meetingMidpoint: "נקודת המפגש",
-    attribution: ["מפות © OpenStreetMap · ניווט © OSRM", "מקומות © תורמי OpenStreetMap · v1.3"],
+    attribution: ["מפות © OpenStreetMap · ניווט © OSRM", "מקומות © תורמי OpenStreetMap · v1.4"],
     travelModes: { "foot-walking": "הליכה", "cycling-regular": "אופניים", "driving-car": "רכב", transit: "תחבורה" },
     venueTypes: { restaurant:"מסעדה", cafe:"בית קפה", bar:"בר", pub:"פאב", cinema:"קולנוע", park:"פארק", museum:"מוזיאון", theatre:"תיאטרון" },
     min: "דק׳", 
@@ -277,20 +277,21 @@ function placeIcon(category, type) {
 
 async function fetchVenues(centroid, radiusKm=2, venueTypes=VENUE_TYPES) {
   const r = radiusKm*1000;
-  const q = `[out:json][timeout:15];(${venueTypes.map(t=>`node["amenity"="${t}"](around:${r},${centroid.lat},${centroid.lng});`).join("")});out body 40;`;
-  for (const ep of ["https://overpass-api.de/api/interpreter","https://lz4.overpass-api.de/api/interpreter","https://overpass.private.coffee/api/interpreter"]) {
+  const q = `[out:json][timeout:10];(${venueTypes.map(t=>`node["amenity"="${t}"](around:${r},${centroid.lat},${centroid.lng});`).join("")});out body 40;`;
+  const tryEp = async (ep) => {
+    const ctrl = new AbortController(), timer = setTimeout(()=>ctrl.abort(), 8000);
     try {
-      const ctrl = new AbortController(), timer = setTimeout(()=>ctrl.abort(), 12000);
       const res = await fetch(ep, { method:"POST", body:q, signal:ctrl.signal });
       clearTimeout(timer);
-      if (!res.ok) continue;
+      if (!res.ok) throw new Error("not ok");
       const d = await res.json();
       const els = (d.elements||[]).filter(e=>e.tags&&e.tags.name);
-      if (!els.length) continue;
+      if (!els.length) throw new Error("empty");
       return els.map(e=>({ id:e.id, name:e.tags.name, type:e.tags.amenity||"place", lat:e.lat, lng:e.lon, cuisine:e.tags.cuisine, opening_hours:e.tags.opening_hours }));
-    } catch (_) { continue; }
-  }
-  return [];
+    } catch(e) { clearTimeout(timer); throw e; }
+  };
+  try { return await Promise.any(["https://overpass-api.de/api/interpreter","https://lz4.overpass-api.de/api/interpreter","https://overpass.private.coffee/api/interpreter"].map(ep=>tryEp(ep))); }
+  catch(_) { return []; }
 }
 
 async function fetchRoute(from, to, osrmProfile="foot") {
@@ -309,6 +310,19 @@ async function fetchRoute(from, to, osrmProfile="foot") {
         distance: d.routes[0].distance 
       };
     }
+  } catch (_) {}
+  return null;
+}
+
+async function fetchRouteDuration(from, to, osrmProfile="foot") {
+  const baseUrl = OSRM_BASES[osrmProfile] || OSRM_BASES.foot;
+  try {
+    const ctrl = new AbortController(), timer = setTimeout(()=>ctrl.abort(), 5000);
+    const r = await fetch(`${baseUrl}/${from.lng},${from.lat};${to.lng},${to.lat}?overview=false`, { signal:ctrl.signal });
+    clearTimeout(timer);
+    if (!r.ok) return null;
+    const d = await r.json();
+    if (d.routes?.[0]) return { duration: d.routes[0].duration, distance: d.routes[0].distance };
   } catch (_) {}
   return null;
 }
@@ -766,18 +780,24 @@ function App() {
     let centroid = calcCentroid(validMembers);
     let scored = [], bestScored = [];
     let allVenuesSeen = new Map();
+    let lastFetchedCentroid = null;
+    const SKIP_THRESHOLD_FACTOR = 0.3;
 
     for (let iter = 0; iter < ITERATIONS; iter++) {
       // 0. Fetch ALL venues around the current center to build our candidate pool (ignores active filter)
       const radius = iter === 0 ? 2 : 2.5;
-      let raw = await fetchVenues(centroid, radius);
-
-      // If iter 0 returns nothing, expand radius progressively before giving up
-      if (iter === 0 && !raw.length) {
-        for (const expandedRadius of [5, 10, 20, 40]) {
-          raw = await fetchVenues(centroid, expandedRadius);
-          if (raw.length) break;
+      const shouldFetch = !lastFetchedCentroid || haversine(lastFetchedCentroid, centroid) > (radius * SKIP_THRESHOLD_FACTOR);
+      let raw = [];
+      if (shouldFetch) {
+        raw = await fetchVenues(centroid, radius);
+        // If iter 0 returns nothing, expand radius progressively before giving up
+        if (iter === 0 && !raw.length) {
+          for (const expandedRadius of [5, 10, 20, 40]) {
+            raw = await fetchVenues(centroid, expandedRadius);
+            if (raw.length) break;
+          }
         }
+        lastFetchedCentroid = { ...centroid };
       }
 
       raw.forEach(v => { if (!allVenuesSeen.has(v.id)) allVenuesSeen.set(v.id, v); });
@@ -793,7 +813,7 @@ function App() {
       await Promise.all(validMembers.map(async m => {
         const profileInfo = TRAVEL_MODES.find(tm => tm.id === m.mode);
         const profile = profileInfo?.osrmProfile || "foot";
-        const route = await fetchRoute(m.latlng, centroid, profile);
+        const route = await fetchRouteDuration(m.latlng, centroid, profile);
         
         if (route) {
           let secs = route.duration;
